@@ -1,1 +1,1 @@
-{"base": "e64f21fd", "parent": "debian/rolling/plotjuggler", "previous": "600ea12f", "trim": "", "trimbase": ""}
+{"base": "22161d1f", "parent": "debian/humble/plotjuggler", "previous": "18f1f8c4", "trim": "", "trimbase": ""}
