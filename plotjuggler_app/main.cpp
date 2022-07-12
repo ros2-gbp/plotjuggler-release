@@ -1,3 +1,9 @@
+/*
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at https://mozilla.org/MPL/2.0/.
+ */
+
 #include "mainwindow.h"
 #include <iostream>
 #include <QApplication>
@@ -11,6 +17,7 @@
 #include <QNetworkReply>
 #include <QJsonDocument>
 #include <QDir>
+#include <QUuid>
 
 #include "PlotJuggler/transform_function.h"
 #include "transforms/first_derivative.h"
@@ -165,7 +172,7 @@ int main(int argc, char* argv[])
 #if !defined(COMPILED_WITH_CATKIN) && !defined(COMPILED_WITH_AMENT)
   for(int i=0; i<argc; i++)
   {
-    args.push_back( args[i] );
+    args.push_back( argv[i] );
   }
 #elif defined(COMPILED_WITH_CATKIN)
   ros::removeROSArgs(argc, argv, args);
@@ -340,9 +347,12 @@ int main(int argc, char* argv[])
   QObject::connect(&manager, &QNetworkAccessManager::finished, OpenNewReleaseDialog);
 
   QNetworkRequest request;
-  request.setUrl(QUrl("https://api.github.com/repos/facontidavide/PlotJuggler/releases/"
-                      "latest"));
-  manager.get(request);
+
+//  QString uuid = settings.value("UUID", QUuid::createUuid().toString()).toString();
+//  settings.setValue("UUID", uuid);
+
+//  request.setUrl(QUrl(QString("https://l4g9l4.deta.dev/check_updates/%1").arg(uuid)) );
+//  manager.get(request);
 
   MainWindow* w = nullptr;
 
