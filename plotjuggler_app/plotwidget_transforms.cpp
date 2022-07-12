@@ -1,3 +1,9 @@
+/*
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at https://mozilla.org/MPL/2.0/.
+ */
+
 #include "plotwidget_transforms.h"
 #include "ui_plotwidget_transforms.h"
 #include <QHBoxLayout>
@@ -214,7 +220,13 @@ void DialogTransformEditor::on_listTransforms_itemSelectionChanged()
     {
       connect(ts->transform().get(), &TransformFunction::parametersChanged, this, [=]() {
         ts->updateCache(true);
-        _plotwidget->zoomOut(false);
+        if( ui->checkBoxAutoZoom->isChecked())
+        {
+          _plotwidget->zoomOut(false);
+        }
+        else{
+          _plotwidget->replot();
+        }
       });
       _connected_transform_widgets.insert(widget);
     }
