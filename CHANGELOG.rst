@@ -2,6 +2,20 @@
 Changelog for package plotjuggler
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+3.8.9 (2024-01-24)
+------------------
+* fix bug `#924 <https://github.com/facontidavide/PlotJuggler/issues/924>`_ (messages with no fields)
+* Bugfix: Wrong curvestyle is preselected (`#921 <https://github.com/facontidavide/PlotJuggler/issues/921>`_)
+* Contributors: Davide Faconti, Simon Sagmeister
+
+3.8.8 (2024-01-18)
+------------------
+* new update screen
+* Update README.md
+* dig diagnostic messages
+* fix snap in CI
+* Contributors: Davide Faconti
+
 3.8.7 (2024-01-16)
 ------------------
 * add "prefix and merge" checkbox
