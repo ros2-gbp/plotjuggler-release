@@ -22,11 +22,13 @@ ParserROS::ParserROS(const std::string& topic_name, const std::string& type_name
       clampLargeArray() ? Parser::KEEP_LARGE_ARRAYS : Parser::DISCARD_LARGE_ARRAYS;
 
   _parser.setMaxArrayPolicy(policy, maxArraySize());
-  _has_header = _parser.getSchema()->root_msg->field(0).type().baseName() == "std_msgs/Header";
+
+  const auto& root_fields = _parser.getSchema()->root_msg->fields();
+  _has_header = !root_fields.empty() && root_fields.front().type().baseName() == "std_msgs/Header";
 
   using std::placeholders::_1;
   using std::placeholders::_2;
-  if (Msg::DiagnosticStatus::id() == type_name)
+  if (Msg::DiagnosticArray::id() == type_name)
   {
     _customized_parser = std::bind(&ParserROS::parseDiagnosticMsg, this, _1, _2);
   }
