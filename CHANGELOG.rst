@@ -2,6 +2,51 @@
 Changelog for package plotjuggler
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+3.9.0 (2024-02-04)
+------------------
+* new status bar with messages from the internet
+* Merge branch 'ulog_improvement'
+* new memes
+* quick file reload!
+* transforms have now default values from previous
+* add icons to dialog Delete Series
+* cleanup and fix ULOG
+* add ULOG parameters as 1 sample timeseries
+* fix issue `#929 <https://github.com/facontidavide/PlotJuggler/issues/929>`_ : numerical truncation
+* bypass truncation check
+* Fixed parsing JointState messages (`#927 <https://github.com/facontidavide/PlotJuggler/issues/927>`_)
+* Contributors: Davide Faconti, Martin Pecka
+
+3.8.10 (2024-01-26)
+-------------------
+* Fix issue #924: crash when loading rosbag with std_msgs/Empty
+* Allow ZMQ plugin to work as server
+* Link against Abseil for macOS builds & improve macOS compile docs `#845 <https://github.com/facontidavide/PlotJuggler/issues/845>`_ (`#905 <https://github.com/facontidavide/PlotJuggler/issues/905>`_)
+* fix issue in CSV `#926 <https://github.com/facontidavide/PlotJuggler/issues/926>`_
+* attempt to match ambiguous ros msg within package before using external known type (`#922 <https://github.com/facontidavide/PlotJuggler/issues/922>`_)
+* Contributors: Davide Faconti, Manuel Valch, Will MacCormack, rugged-robotics
+
+3.8.9 (2024-01-24)
+------------------
+* fix bug `#924 <https://github.com/facontidavide/PlotJuggler/issues/924>`_ (messages with no fields)
+* Bugfix: Wrong curvestyle is preselected (`#921 <https://github.com/facontidavide/PlotJuggler/issues/921>`_)
+* Contributors: Davide Faconti, Simon Sagmeister
+
+3.8.8 (2024-01-18)
+------------------
+* new update screen
+* Update README.md
+* dig diagnostic messages
+* fix snap in CI
+* Contributors: Davide Faconti
+
+3.8.7 (2024-01-16)
+------------------
+* add "prefix and merge" checkbox
+* fix warning "transparent.png"
+* fix issue `#912 <https://github.com/facontidavide/PlotJuggler/issues/912>`_
+* Contributors: Davide Faconti
+
 3.8.6 (2024-01-09)
 ------------------
 * fix issue `#906 <https://github.com/facontidavide/PlotJuggler/issues/906>`_: support nanoseconds timestamp in csv

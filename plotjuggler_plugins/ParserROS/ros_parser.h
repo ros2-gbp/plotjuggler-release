@@ -17,14 +17,20 @@ public:
 
   void setLargeArraysPolicy(bool clamp, unsigned max_size) override;
 
+  void enableTruncationCheck(bool enable)
+  {
+    _strict_truncation_check = enable;
+  }
+
 protected:
   RosMsgParser::Parser _parser;
-  std::shared_ptr<RosMsgParser::Deserializer> _deserializer;
+  std::unique_ptr<RosMsgParser::Deserializer> _deserializer;
   RosMsgParser::FlatMessage _flat_msg;
   std::string _topic;
 
   PJ::Msg::Header readHeader(double& timestamp);
   void parseHeader(const std::string& prefix, double& timestamp);
+  void parseEmpty(const std::string& prefix, double& timestamp);
 
   template <size_t N>
   void parseCovariance(const std::string& prefix, double& timestamp);
@@ -59,6 +65,7 @@ protected:
   std::function<void(const std::string& prefix, double&)> _customized_parser;
 
   bool _has_header = false;
+  bool _strict_truncation_check = true;
 };
 
 template <size_t N>
