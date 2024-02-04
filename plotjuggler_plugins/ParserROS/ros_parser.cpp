@@ -22,11 +22,17 @@ ParserROS::ParserROS(const std::string& topic_name, const std::string& type_name
       clampLargeArray() ? Parser::KEEP_LARGE_ARRAYS : Parser::DISCARD_LARGE_ARRAYS;
 
   _parser.setMaxArrayPolicy(policy, maxArraySize());
-  _has_header = _parser.getSchema()->root_msg->field(0).type().baseName() == "std_msgs/Header";
+
+  const auto& root_fields = _parser.getSchema()->root_msg->fields();
+  _has_header = !root_fields.empty() && root_fields.front().type().baseName() == "std_msgs/Header";
 
   using std::placeholders::_1;
   using std::placeholders::_2;
-  if (Msg::DiagnosticStatus::id() == type_name)
+  if(Msg::Empty::id() == type_name)
+  {
+    _customized_parser = std::bind(&ParserROS::parseEmpty, this, _1, _2);
+  }
+  else if (Msg::DiagnosticArray::id() == type_name)
   {
     _customized_parser = std::bind(&ParserROS::parseDiagnosticMsg, this, _1, _2);
   }
@@ -104,9 +110,7 @@ bool ParserROS::parseMessage(const PJ::MessageRef serialized_msg, double& timest
       ts = sec + 1e-9*nsec;
     }
     else {
-      auto sec = _flat_msg.value[1].second.convert<double>();
-      auto nsec = _flat_msg.value[2].second.convert<double>();
-      ts = sec + 1e-9*nsec;
+      ts = _flat_msg.value[1].second.convert<RosMsgParser::Time>().toSec();
     }
     timestamp = (ts > 0) ? ts : timestamp;
   }
@@ -124,7 +128,34 @@ bool ParserROS::parseMessage(const PJ::MessageRef serialized_msg, double& timest
   {
     key.toStr(series_name);
     PlotData& data = getSeries(series_name);
-    data.pushBack({ timestamp, value.convert<double>() });
+
+    if(!_strict_truncation_check)
+    {
+      // bypass the truncation check
+      if(value.getTypeID() == BuiltinType::INT64)
+      {
+        data.pushBack({ timestamp, double(value.convert<int64_t>()) });
+        continue;
+      }
+      if(value.getTypeID() == BuiltinType::UINT64)
+      {
+        data.pushBack({ timestamp, double(value.convert<uint64_t>()) });
+        continue;
+      }
+    }
+    try{
+      data.pushBack({ timestamp, value.convert<double>() });
+    }
+    catch(RangeException& ex)
+    {
+      std::string msg = std::string(ex.what());
+      if(msg == "Floating point truncated")
+      {
+        msg += ".\n\nYou can disable this check in:\n"
+               "App -> Preferences... -> Behavior -> Parsing";
+      }
+      throw std::runtime_error(msg);
+    }
   }
   return true;
 }
@@ -174,6 +205,11 @@ void ParserROS::parseHeader(const std::string& prefix, double& timestamp)
   }
 }
 
+void ParserROS::parseEmpty(const std::string &prefix, double &timestamp)
+{
+  getSeries(prefix).pushBack({ timestamp, 0 });
+}
+
 
 void ParserROS::parseVector3(const std::string& prefix, double& timestamp)
 {
@@ -205,7 +241,7 @@ void ParserROS::parseQuaternion(const std::string& prefix, double& timestamp)
   getSeries(prefix + "/x").pushBack({ timestamp, quat.x });
   getSeries(prefix + "/y").pushBack({ timestamp, quat.y });
   getSeries(prefix + "/z").pushBack({ timestamp, quat.z });
-  getSeries(prefix + "/z").pushBack({ timestamp, quat.w });
+  getSeries(prefix + "/w").pushBack({ timestamp, quat.w });
 
   auto rpy = Msg::QuaternionToRPY(quat);
   getSeries(prefix + "/roll").pushBack({ timestamp, rpy.roll });
@@ -400,17 +436,17 @@ void ParserROS::parseJointStateMsg(const std::string& prefix, double& timestamp)
   }
   //---------------------------
   std::string series_name;
-  for (size_t i = 0; i < std::max(name_size, pos_size); i++)
+  for (size_t i = 0; i < std::min(name_size, pos_size); i++)
   {
     series_name = fmt::format("{}/{}/position", _topic, msg.name[i]);
     getSeries(series_name).pushBack({ timestamp, msg.position[i] });
   }
-  for (size_t i = 0; i < std::max(name_size, vel_size); i++)
+  for (size_t i = 0; i < std::min(name_size, vel_size); i++)
   {
     series_name = fmt::format("{}/{}/velocity", _topic, msg.name[i]);
     getSeries(series_name).pushBack({ timestamp, msg.velocity[i] });
   }
-  for (size_t i = 0; i < std::max(name_size, eff_size); i++)
+  for (size_t i = 0; i < std::min(name_size, eff_size); i++)
   {
     series_name = fmt::format("{}/{}/effort", _topic, msg.name[i]);
     getSeries(series_name).pushBack({ timestamp, msg.effort[i] });

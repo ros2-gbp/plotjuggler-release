@@ -13,11 +13,14 @@
 #include <QDesktopWidget>
 #include <QFontDatabase>
 #include <QSettings>
+#include <QPushButton>
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
 #include <QJsonDocument>
 #include <QDir>
+#include <QDialog>
 #include <QUuid>
+#include <QDesktopServices>
 
 #include "PlotJuggler/transform_function.h"
 #include "transforms/first_derivative.h"
@@ -29,8 +32,8 @@
 #include "transforms/integral_transform.h"
 #include "transforms/absolute_transform.h"
 
-#include "nlohmann_parsers.h"
 #include "new_release_dialog.h"
+#include "ui_changelog_dialog.h"
 
 #ifdef COMPILED_WITH_CATKIN
 #include <ros/ros.h>
@@ -55,12 +58,35 @@ inline int GetVersionNumber(QString str)
   return major * 10000 + minor * 100 + patch;
 }
 
+void ShowChangelogDialog()
+{
+    QDialog* dialog = new QDialog();
+    auto ui = new Ui::ChangelogDialog();
+    ui->setupUi(dialog);
+
+    QObject::connect(ui->buttonChangelog, &QPushButton::clicked, dialog, [](bool) {
+        QDesktopServices::openUrl(QUrl("https://bit.ly/plotjuggler-update"));
+        QSettings settings;
+        settings.setValue("Changelog/first", false);
+    });
+
+
+    QObject::connect(ui->checkBox, &QCheckBox::toggled, dialog, [](bool toggle) {
+        QSettings settings;
+        settings.setValue("Changelog/dont", toggle);
+    });
+
+    dialog->exec();
+}
+
 void OpenNewReleaseDialog(QNetworkReply* reply)
 {
   if (reply->error())
   {
+    qDebug() << "reply error";
     return;
   }
+
   QString answer = reply->readAll();
   QJsonDocument document = QJsonDocument::fromJson(answer.toUtf8());
   QJsonObject data = document.object();
@@ -77,7 +103,7 @@ void OpenNewReleaseDialog(QNetworkReply* reply)
   if (online_number > current_number && online_number > dontshow_number)
   {
     NewReleaseDialog* dialog = new NewReleaseDialog(nullptr, tag_name, name, url);
-    dialog->show();
+    dialog->exec();
   }
 }
 
@@ -87,7 +113,7 @@ QPixmap getFunnySplashscreen()
   srand(time(nullptr));
 
   auto getNum = []() {
-    const int last_image_num = 89;
+    const int last_image_num = 93;
     int n = rand() % (last_image_num + 2);
     if (n > last_image_num)
     {
@@ -350,18 +376,14 @@ int main(int argc, char* argv[])
   QIcon app_icon("://resources/plotjuggler.svg");
   QApplication::setWindowIcon(app_icon);
 
-  QNetworkAccessManager manager;
-  QObject::connect(&manager, &QNetworkAccessManager::finished, OpenNewReleaseDialog);
+  QNetworkAccessManager manager_new_release;
+  QObject::connect(&manager_new_release, &QNetworkAccessManager::finished, OpenNewReleaseDialog);
 
-  QNetworkRequest request;
+  QNetworkRequest request_new_release;
+  request_new_release.setUrl(QUrl("https://api.github.com/repos/facontidavide/PlotJuggler/releases/latest"));
+  manager_new_release.get(request_new_release);
 
-  QString uuid = settings.value("UUID", QUuid::createUuid().toString()).toString();
-  settings.setValue("UUID", uuid);
-
-  request.setUrl(QUrl(QString("https://l4g9l4.deta.dev/check_updates/%1").arg(uuid)));
-  manager.get(request);
-
-  MainWindow* w = nullptr;
+  MainWindow* window = nullptr;
 
   /*
    * You, fearless code reviewer, decided to start a journey into my source code.
@@ -376,8 +398,14 @@ int main(int argc, char* argv[])
    * data. Please don't do it.
    */
 
-  if (!parser.isSet(nosplash_option) &&
-      !(parser.isSet(loadfile_option) || parser.isSet(layout_option)))
+  bool first_changelog = settings.value("Changelog/first", true).toBool();
+  bool dont_changelog = settings.value("Changelog/dont", false).toBool();
+
+  if(first_changelog && !dont_changelog) {
+      ShowChangelogDialog();
+  }
+  else if (!parser.isSet(nosplash_option) &&
+           !(parser.isSet(loadfile_option) || parser.isSet(layout_option)))
   // if(false) // if you uncomment this line, a kitten will die somewhere in the world.
   {
     QPixmap main_pixmap;
@@ -396,6 +424,7 @@ int main(int argc, char* argv[])
     {
       main_pixmap = getFunnySplashscreen();
     }
+
     QSplashScreen splash(main_pixmap, Qt::WindowStaysOnTopHint);
     QDesktopWidget* desktop = QApplication::desktop();
     const int scrn = desktop->screenNumber();
@@ -408,10 +437,10 @@ int main(int argc, char* argv[])
     auto deadline = QDateTime::currentDateTime().addMSecs(500);
     while (QDateTime::currentDateTime() < deadline)
     {
-      app.processEvents();
+        app.processEvents();
     }
 
-    w = new MainWindow(parser);
+    window = new MainWindow(parser);
 
     deadline = QDateTime::currentDateTime().addMSecs(3000);
     while (QDateTime::currentDateTime() < deadline && !splash.isHidden())
@@ -419,17 +448,38 @@ int main(int argc, char* argv[])
       app.processEvents();
     }
   }
-  else
+
+  if(!window)
   {
-    w = new MainWindow(parser);
+    window = new MainWindow(parser);
   }
 
-  w->show();
+  window->show();
 
   if (parser.isSet(start_streamer))
   {
-    w->on_buttonStreamingStart_clicked();
+    window->on_buttonStreamingStart_clicked();
   }
+
+  QNetworkAccessManager manager_message;
+  QObject::connect(&manager_message, &QNetworkAccessManager::finished,
+                   [window](QNetworkReply* reply)
+                   {
+                     if (reply->error())
+                     {
+                       return;
+                     }
+                     QString answer = reply->readAll();
+                     QJsonDocument document = QJsonDocument::fromJson(answer.toUtf8());
+                     QJsonObject data = document.object();
+                     QString message = data["message"].toString();
+                     window->setStatusBarMessage(message);
+                   });
+
+  QNetworkRequest request_message;
+  request_message.setUrl(QUrl("https://fastapi-example-7kz3.onrender.com"));
+  manager_message.get(request_message);
+
 
   return app.exec();
 }
