@@ -74,17 +74,18 @@ public:
     } value;
     FormatType val_type;
 
-    bool readFromBuffer(const char *message);
+    bool readFromBuffer(const char* message);
   };
 
   struct Format
   {
-    Format() : padding(0)
+    Format() : padding(0), timestamp_idx(-1)
     {
     }
     std::string name;
     std::vector<Field> fields;
     int padding;
+    int timestamp_idx;
   };
 
   struct MessageLog

@@ -1,7 +1,7 @@
 #ifndef ROS_PARSER_H
 #define ROS_PARSER_H
 
-#include "PlotJuggler/fmt/core.h"
+#include "PlotJuggler/contrib/fmt/core.h"
 #include "PlotJuggler/messageparser_base.h"
 #include "rosx_introspection/ros_parser.hpp"
 #include "special_messages.h"
@@ -62,6 +62,12 @@ protected:
   void parsePalStatisticsNames(const std::string& prefix, double& timestamp);
   void parsePalStatisticsValues(const std::string& prefix, double& timestamp);
 
+  void parseTSLDefinition(const std::string& prefix, double& timestamp);
+  void parseTSLValues(const std::string& prefix, double& timestamp);
+  void process_tsl_values(const std::string& prefix, const double& timestamp,
+                          const std::vector<std::string>& definition,
+                          const std::vector<double>& values);
+
   std::function<void(const std::string& prefix, double&)> _customized_parser;
 
   bool _has_header = false;
@@ -81,7 +87,8 @@ inline void ParserROS::parseCovariance(const std::string& prefix, double& timest
     for (int j = i; j < N; j++)
     {
       const size_t index = i * N + j;
-      getSeries(fmt::format("{}/[{};{}]", prefix, i, j)).pushBack({ timestamp, cov[index] });
+      getSeries(fmt::format("{}/[{};{}]", prefix, i, j))
+          .pushBack({ timestamp, cov[index] });
     }
   }
 }
