@@ -30,8 +30,7 @@
 //-------------------------------------------------
 
 CurveListPanel::CurveListPanel(PlotDataMapRef& mapped_plot_data,
-			       const TransformsMap& mapped_math_plots,
-			       QWidget* parent)
+                               const TransformsMap& mapped_math_plots, QWidget* parent)
   : QWidget(parent)
   , ui(new Ui::CurveListPanel)
   , _plot_data(mapped_plot_data)
@@ -287,7 +286,9 @@ void CurveListPanel::refreshValues()
   auto default_foreground = _custom_view->palette().foreground();
 
   auto FormattedNumber = [](double value) {
-    QString num_text = QString::number(value, 'f', 3);
+    QSettings settings;
+    int prec = settings.value("Preferences::precision", 3).toInt();
+    QString num_text = QString::number(value, 'f', prec);
     if (num_text.contains('.'))
     {
       int idx = num_text.length() - 1;
@@ -408,7 +409,7 @@ QString StringifyArray(QString str)
 
 QString CurveListPanel::getTreeName(QString name)
 {
-  auto parts = name.split('/', QString::SplitBehavior::SkipEmptyParts);
+  auto parts = name.split('/', PJ::SkipEmptyParts);
 
   QString out;
   for (int i = 0; i < parts.size(); i++)
@@ -562,10 +563,12 @@ void CurveListPanel::on_pushButtonTrash_clicked(bool)
   QSettings settings;
   QString theme = settings.value("StyleSheet::theme", "light").toString();
 
-  QPushButton* buttonAll = msgBox.addButton(tr("Delete All"), QMessageBox::DestructiveRole);
+  QPushButton* buttonAll =
+      msgBox.addButton(tr("Delete All"), QMessageBox::DestructiveRole);
   buttonAll->setIcon(LoadSvg(":/resources/svg/clear.svg"));
 
-  QPushButton* buttonPoints = msgBox.addButton(tr("Delete Points"), QMessageBox::DestructiveRole);
+  QPushButton* buttonPoints =
+      msgBox.addButton(tr("Delete Points"), QMessageBox::DestructiveRole);
   buttonPoints->setIcon(LoadSvg(":/resources/svg/point_chart.svg"));
 
   msgBox.addButton(QMessageBox::Cancel);

@@ -26,6 +26,9 @@ PreferencesDialog::PreferencesDialog(QWidget* parent)
     ui->comboBoxTheme->setCurrentIndex(0);
   }
 
+  int precision = settings.value("Preferences::precision", 3).toInt();
+  ui->comboBoxPrecision->setCurrentIndex(precision);
+
   bool use_plot_color_index =
       settings.value("Preferences::use_plot_color_index", false).toBool();
   bool remember_color = settings.value("Preferences::remember_color", true).toBool();
@@ -43,13 +46,16 @@ PreferencesDialog::PreferencesDialog(QWidget* parent)
   bool use_opengl = settings.value("Preferences::use_opengl", true).toBool();
   ui->checkBoxOpenGL->setChecked(use_opengl);
 
-  bool autozoom_visibility = settings.value("Preferences::autozoom_visibility",true).toBool();
+  bool autozoom_visibility =
+      settings.value("Preferences::autozoom_visibility", true).toBool();
   ui->checkBoxAutoZoomVisibility->setChecked(autozoom_visibility);
 
-  bool autozoom_curve_added = settings.value("Preferences::autozoom_curve_added",true).toBool();
+  bool autozoom_curve_added =
+      settings.value("Preferences::autozoom_curve_added", true).toBool();
   ui->checkBoxAutoZoomAdded->setChecked(autozoom_curve_added);
 
-  bool autozoom_filter_applied = settings.value("Preferences::autozoom_filter_applied",true).toBool();
+  bool autozoom_filter_applied =
+      settings.value("Preferences::autozoom_filter_applied", true).toBool();
   ui->checkBoxAutoZoomFilter->setChecked(autozoom_filter_applied);
 
   bool truncation_check = settings.value("Preferences::truncation_check", true).toBool();
@@ -92,11 +98,15 @@ void PreferencesDialog::on_buttonBox_accepted()
                     ui->checkBoxRememberColor->isChecked());
   settings.setValue("Preferences::use_plot_color_index",
                     ui->radioLocalColorIndex->isChecked());
+  settings.setValue("Preferences::precision", ui->comboBoxPrecision->currentIndex());
   settings.setValue("Preferences::use_separator", ui->checkBoxSeparator->isChecked());
   settings.setValue("Preferences::use_opengl", ui->checkBoxOpenGL->isChecked());
-  settings.setValue("Preferences::autozoom_visibility", ui->checkBoxAutoZoomVisibility->isChecked());
-  settings.setValue("Preferences::autozoom_curve_added", ui->checkBoxAutoZoomAdded->isChecked());
-  settings.setValue("Preferences::autozoom_filter_applied", ui->checkBoxAutoZoomFilter->isChecked());
+  settings.setValue("Preferences::autozoom_visibility",
+                    ui->checkBoxAutoZoomVisibility->isChecked());
+  settings.setValue("Preferences::autozoom_curve_added",
+                    ui->checkBoxAutoZoomAdded->isChecked());
+  settings.setValue("Preferences::autozoom_filter_applied",
+                    ui->checkBoxAutoZoomFilter->isChecked());
   settings.setValue("Preferences::truncation_check", ui->checkBoxTruncation->isChecked());
 
   QStringList plugin_folders;

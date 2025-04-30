@@ -97,34 +97,41 @@ bool UDP_Server::start(QStringList*)
 
   // load previous values
   QSettings settings;
-  QString protocol = settings.value("UDP_Server::protocol", "JSON").toString();
   QString address_str = settings.value("UDP_Server::address", "127.0.0.1").toString();
   int port = settings.value("UDP_Server::port", 9870).toInt();
+  QString protocol = settings.value("UDP_Server::protocol").toString();
+  if (parserFactories()->find(protocol) == parserFactories()->end())
+  {
+    protocol = "json";
+  }
 
   dialog.ui->lineEditAddress->setText(address_str);
   dialog.ui->lineEditPort->setText(QString::number(port));
 
   ParserFactoryPlugin::Ptr parser_creator;
 
+  auto onComboChanged = [&](const QString& selected_protocol) {
+    if (parser_creator)
+    {
+      if (auto prev_widget = parser_creator->optionsWidget())
+      {
+        prev_widget->setVisible(false);
+      }
+    }
+    parser_creator = parserFactories()->at(selected_protocol);
+
+    if (auto widget = parser_creator->optionsWidget())
+    {
+      widget->setVisible(true);
+    }
+  };
+
   connect(dialog.ui->comboBoxProtocol,
           qOverload<const QString&>(&QComboBox::currentIndexChanged), this,
-          [&](const QString& selected_protocol) {
-            if (parser_creator)
-            {
-              if (auto prev_widget = parser_creator->optionsWidget())
-              {
-                prev_widget->setVisible(false);
-              }
-            }
-            parser_creator = parserFactories()->at(selected_protocol);
-
-            if (auto widget = parser_creator->optionsWidget())
-            {
-              widget->setVisible(true);
-            }
-          });
+          onComboChanged);
 
   dialog.ui->comboBoxProtocol->setCurrentText(protocol);
+  onComboChanged(protocol);
 
   int res = dialog.exec();
   if (res == QDialog::Rejected)
@@ -150,6 +157,11 @@ bool UDP_Server::start(QStringList*)
   success &= !address.isNull();
 
   _udp_socket = new QUdpSocket();
+  int ip_version = 4;
+  if (address.protocol() == QAbstractSocket::IPv6Protocol)
+  {
+    ip_version = 6;
+  }
 
   if (!address.isMulticast())
   {
@@ -157,20 +169,47 @@ bool UDP_Server::start(QStringList*)
   }
   else
   {
-    success &= _udp_socket->bind(
-        address, port, QAbstractSocket::ShareAddress | QAbstractSocket::ReuseAddressHint);
+    QHostAddress bind_address = address;
+    if (ip_version == 6)
+    {
+      // IPv6 multicast needs to bind to AnyIPv6
+      bind_address = QHostAddress::AnyIPv6;
+    }
+    success &= _udp_socket->bind(bind_address, port,
+                                 QAbstractSocket::ShareAddress |
+                                     QAbstractSocket::ReuseAddressHint);
+    if (!success)
+    {
+      qDebug() << tr("Couldn't bind IPv%3 UDP socket (%1, %2)")
+                      .arg(address_str)
+                      .arg(port)
+                      .arg(ip_version);
+    }
 
     // Add multicast group membership to all interfaces which support multicast.
+    bool bound_one_interface = false;
     for (const auto& interface : QNetworkInterface::allInterfaces())
     {
       QNetworkInterface::InterfaceFlags iflags = interface.flags();
-      if (interface.isValid() && !iflags.testFlag(QNetworkInterface::IsLoopBack) &&
+      if (success && interface.isValid() &&
+          !iflags.testFlag(QNetworkInterface::IsLoopBack) &&
           iflags.testFlag(QNetworkInterface::CanMulticast) &&
           iflags.testFlag(QNetworkInterface::IsRunning))
       {
-        success &= _udp_socket->joinMulticastGroup(address, interface);
+        if (_udp_socket->joinMulticastGroup(address, interface))
+        {
+          bound_one_interface = true;
+        }
+        else
+        {
+          qDebug() << tr("Couldn't join IPv%4 multicast group (%1, %2) on interface %3")
+                          .arg(address_str)
+                          .arg(port)
+                          .arg(interface.name().arg(ip_version));
+        }
       }
     }
+    success &= bound_one_interface;
   }
 
   _running = true;
@@ -179,12 +218,18 @@ bool UDP_Server::start(QStringList*)
 
   if (success)
   {
-    qDebug() << tr("UDP listening on (%1, %2)").arg(address_str).arg(port);
+    qDebug() << tr("IPv%3 UDP listening on (%1, %2)")
+                    .arg(address_str)
+                    .arg(port)
+                    .arg(ip_version);
   }
   else
   {
     QMessageBox::warning(nullptr, tr("UDP Server"),
-                         tr("Couldn't bind to UDP (%1, %2)").arg(address_str).arg(port),
+                         tr("Couldn't bind to IPv%4 UDP server at (%1, %2)")
+                             .arg(address_str)
+                             .arg(port)
+                             .arg(ip_version),
                          QMessageBox::Ok);
     shutdown();
   }
