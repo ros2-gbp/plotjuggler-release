@@ -1,6 +1,13 @@
 #include "ros_parser.h"
 #include "data_tamer_parser/data_tamer_parser.hpp"
-#include "PlotJuggler/fmt/core.h"
+#include "PlotJuggler/contrib/fmt/core.h"
+#include <queue>
+#include <algorithm>
+#include <unordered_map>
+#include <tuple>
+#include <vector>
+#include <string>
+#include <utility>
 
 using namespace PJ;
 using namespace RosMsgParser;
@@ -24,11 +31,13 @@ ParserROS::ParserROS(const std::string& topic_name, const std::string& type_name
   _parser.setMaxArrayPolicy(policy, maxArraySize());
 
   const auto& root_fields = _parser.getSchema()->root_msg->fields();
-  _has_header = !root_fields.empty() && root_fields.front().type().baseName() == "std_msgs/Header";
+  _has_header = !root_fields.empty() && root_fields.front().type().baseName() == "std_"
+                                                                                 "msgs/"
+                                                                                 "Header";
 
   using std::placeholders::_1;
   using std::placeholders::_2;
-  if(Msg::Empty::id() == type_name)
+  if (Msg::Empty::id() == type_name)
   {
     _customized_parser = std::bind(&ParserROS::parseEmpty, this, _1, _2);
   }
@@ -76,15 +85,23 @@ ParserROS::ParserROS(const std::string& topic_name, const std::string& type_name
   {
     _customized_parser = std::bind(&ParserROS::parseTransformStamped, this, _1, _2);
   }
-  else if (Msg::PalStatisticsNames::id() == type_name ||
-           type_name == "plotjuggler_msgs/StatisticsNames")
+  else if (Msg::PalStatisticsNames::id() == type_name || type_name == "plotjuggler_msgs/"
+                                                                      "StatisticsNames")
   {
     _customized_parser = std::bind(&ParserROS::parsePalStatisticsNames, this, _1, _2);
   }
-  else if (Msg::PalStatisticsValues::id() == type_name  ||
-           type_name == "plotjuggler_msgs/StatisticsValues")
+  else if (Msg::PalStatisticsValues::id() == type_name || type_name == "plotjuggler_msgs/"
+                                                                       "StatisticsValues")
   {
     _customized_parser = std::bind(&ParserROS::parsePalStatisticsValues, this, _1, _2);
+  }
+  else if ("tsl_msgs/TSLDefinition" == type_name)
+  {
+    _customized_parser = std::bind(&ParserROS::parseTSLDefinition, this, _1, _2);
+  }
+  else if ("tsl_msgs/TSLValues" == type_name)
+  {
+    _customized_parser = std::bind(&ParserROS::parseTSLValues, this, _1, _2);
   }
 }
 
@@ -100,16 +117,17 @@ bool ParserROS::parseMessage(const PJ::MessageRef serialized_msg, double& timest
 
   _parser.deserialize(serialized_msg, &_flat_msg, _deserializer.get());
 
-  if(_has_header && this->useEmbeddedTimestamp())
+  if (_has_header && this->useEmbeddedTimestamp())
   {
     double ts = 0;
-    if(_deserializer->isROS2())
+    if (_deserializer->isROS2())
     {
       auto sec = _flat_msg.value[0].second.convert<double>();
       auto nsec = _flat_msg.value[1].second.convert<double>();
-      ts = sec + 1e-9*nsec;
+      ts = sec + 1e-9 * nsec;
     }
-    else {
+    else
+    {
       ts = _flat_msg.value[1].second.convert<RosMsgParser::Time>().toSec();
     }
     timestamp = (ts > 0) ? ts : timestamp;
@@ -129,27 +147,28 @@ bool ParserROS::parseMessage(const PJ::MessageRef serialized_msg, double& timest
     key.toStr(series_name);
     PlotData& data = getSeries(series_name);
 
-    if(!_strict_truncation_check)
+    if (!_strict_truncation_check)
     {
       // bypass the truncation check
-      if(value.getTypeID() == BuiltinType::INT64)
+      if (value.getTypeID() == BuiltinType::INT64)
       {
         data.pushBack({ timestamp, double(value.convert<int64_t>()) });
         continue;
       }
-      if(value.getTypeID() == BuiltinType::UINT64)
+      if (value.getTypeID() == BuiltinType::UINT64)
       {
         data.pushBack({ timestamp, double(value.convert<uint64_t>()) });
         continue;
       }
     }
-    try{
+    try
+    {
       data.pushBack({ timestamp, value.convert<double>() });
     }
-    catch(RangeException& ex)
+    catch (RangeException& ex)
     {
       std::string msg = std::string(ex.what());
-      if(msg == "Floating point truncated")
+      if (msg == "Floating point truncated")
       {
         msg += ".\n\nYou can disable this check in:\n"
                "App -> Preferences... -> Behavior -> Parsing";
@@ -205,11 +224,10 @@ void ParserROS::parseHeader(const std::string& prefix, double& timestamp)
   }
 }
 
-void ParserROS::parseEmpty(const std::string &prefix, double &timestamp)
+void ParserROS::parseEmpty(const std::string& prefix, double& timestamp)
 {
   getSeries(prefix).pushBack({ timestamp, 0 });
 }
-
 
 void ParserROS::parseVector3(const std::string& prefix, double& timestamp)
 {
@@ -536,13 +554,13 @@ void ParserROS::parseDataTamerSnapshot(const std::string& prefix, double& timest
 
 static std::unordered_map<uint32_t, std::vector<std::string>> _pal_statistics_names;
 
-void ParserROS::parsePalStatisticsNames(const std::string &prefix, double &timestamp)
+void ParserROS::parsePalStatisticsNames(const std::string& prefix, double& timestamp)
 {
   const auto header = readHeader(timestamp);
   std::vector<std::string> names;
   const size_t vector_size = _deserializer->deserializeUInt32();
   names.resize(vector_size);
-  for(auto& name: names)
+  for (auto& name : names)
   {
     _deserializer->deserializeString(name);
   }
@@ -550,27 +568,130 @@ void ParserROS::parsePalStatisticsNames(const std::string &prefix, double &times
   _pal_statistics_names[names_version] = std::move(names);
 }
 
-void ParserROS::parsePalStatisticsValues(const std::string &prefix, double &timestamp)
+void ParserROS::parsePalStatisticsValues(const std::string& prefix, double& timestamp)
 {
   const auto header = readHeader(timestamp);
   std::vector<double> values;
   const size_t vector_size = _deserializer->deserializeUInt32();
   values.resize(vector_size);
 
-  for(auto& value: values)
+  for (auto& value : values)
   {
     value = _deserializer->deserialize(BuiltinType::FLOAT64).convert<double>();
   }
   uint32_t names_version = _deserializer->deserializeUInt32();
   auto it = _pal_statistics_names.find(names_version);
-  if( it != _pal_statistics_names.end() )
+  if (it != _pal_statistics_names.end())
   {
     const auto& names = it->second;
     const size_t N = std::min(names.size(), values.size());
-    for(size_t i=0; i<N; i++)
+    for (size_t i = 0; i < N; i++)
     {
       auto& series = getSeries(fmt::format("{}/{}", prefix, names[i]));
-      series.pushBack({timestamp, values[i]});
+      series.pushBack({ timestamp, values[i] });
     }
   }
+}
+
+constexpr static std::array<BuiltinType, 11> _tsl_type_order = {
+  BuiltinType::BOOL,   BuiltinType::INT8,    BuiltinType::UINT8,   BuiltinType::INT16,
+  BuiltinType::UINT16, BuiltinType::INT32,   BuiltinType::UINT32,  BuiltinType::INT64,
+  BuiltinType::UINT64, BuiltinType::FLOAT32, BuiltinType::FLOAT64,
+};
+static std::unordered_map<std::uint64_t, std::vector<std::string>> _tsl_definitions;
+// Add a buffer for messages that are recieved before their definition
+static std::unordered_map<
+    std::uint64_t, std::queue<std::tuple<std::string, double, std::vector<double>>>>
+    _tsl_values_buffer;
+inline void ParserROS::process_tsl_values(const std::string& prefix,
+                                          const double& timestamp,
+                                          const std::vector<std::string>& definition,
+                                          const std::vector<double>& values)
+{
+  const std::size_t N = std::min(definition.size(), values.size());
+  for (size_t i = 0; i < N; i++)
+  {
+    auto& series = getSeries(fmt::format("{}/{}", prefix, definition[i]));
+    series.pushBack({ timestamp, values[i] });
+  }
+}
+
+void ParserROS::parseTSLDefinition(const std::string& prefix, double& timestamp)
+{
+  // region Deserialize into a flattened array of signal names since the type
+  // is not relevant inside plotjuggler any more
+  std::uint32_t sec = _deserializer->deserializeUInt32();   // stamp
+  std::uint32_t nsec = _deserializer->deserializeUInt32();  // stamp
+  std::size_t definition_hash =
+      _deserializer->deserialize(BuiltinType::UINT64).extract<std::size_t>();
+
+  // Return if definition has already been parsed
+  if (_tsl_definitions.count(definition_hash) != 0)
+  {
+    // Do i have to flush the buffer in order to not create memory leaks?
+    return;
+  }
+  // Create the definition
+  std::vector<std::string> definition;
+
+  std::size_t num_signals = 0;
+  std::size_t index = 0;
+  for (auto const& _ : _tsl_type_order)
+  {
+    num_signals = _deserializer->deserializeUInt32();
+    definition.resize(definition.size() + num_signals);
+    for (; index < definition.size(); index++)
+    {
+      _deserializer->deserializeString(definition[index]);
+    }
+  }
+  // endregion
+
+  // Insert the scheme
+  _tsl_definitions[definition_hash] = std::move(definition);
+
+  // Process all the stuff in the buffer
+  auto& buffer_queue = _tsl_values_buffer[definition_hash];
+  while (!buffer_queue.empty())
+  {
+    const auto& tuple = buffer_queue.front();
+    process_tsl_values(std::get<0>(tuple), std::get<1>(tuple),
+                       _tsl_definitions[definition_hash], std::get<2>(tuple));
+    buffer_queue.pop();
+  }
+}
+void ParserROS::parseTSLValues(const std::string& prefix, double& timestamp)
+{
+  // region Deserialize into a flattened array of double values since the type
+  // is not relevant inside plotjuggler any more
+  std::uint32_t sec = _deserializer->deserializeUInt32();   // stamp
+  std::uint32_t nsec = _deserializer->deserializeUInt32();  // stamp
+  std::size_t definition_hash =
+      _deserializer->deserialize(BuiltinType::UINT64).extract<std::size_t>();
+
+  // Create the definition
+  std::vector<double> values;
+
+  std::size_t num_signals = 0;
+  std::size_t index = 0;
+  for (auto const& type_id : _tsl_type_order)
+  {
+    num_signals = _deserializer->deserializeUInt32();
+    values.resize(values.size() + num_signals);
+    for (; index < values.size(); index++)
+    {
+      values[index] = _deserializer->deserialize(type_id).convert<double>();
+    }
+  }
+  // endregion
+
+  // If no definition was found, add to the queue and return
+  if (_tsl_definitions.count(definition_hash) == 0)
+  {
+    _tsl_values_buffer[definition_hash].push({ prefix, timestamp, std::move(values) });
+    return;
+  }
+
+  // Process the signal
+  process_tsl_values(prefix, timestamp, _tsl_definitions[definition_hash], values);
 }

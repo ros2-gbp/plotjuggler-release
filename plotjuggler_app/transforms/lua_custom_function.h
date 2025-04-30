@@ -2,7 +2,9 @@
 #define LUA_CUSTOM_FUNCTION_H
 
 #include "custom_function.h"
-#include "sol.hpp"
+#include <sol/sol.hpp>
+
+#include <mutex>
 
 class LuaCustomFunction : public CustomFunction
 {
