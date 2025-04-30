@@ -15,7 +15,6 @@ QT5_WRAP_UI ( UI_SRC
     preferences_dialog.ui
     suggest_dialog.ui
     new_release_dialog.ui
-    changelog_dialog.ui
     multifile_prefix.ui
     colormap_editor.ui
     colormap_selector.ui
@@ -114,27 +113,18 @@ endif()
 target_link_libraries(plotjuggler
     ${QT_LINK_LIBRARIES}
     colorwidgets
-    lua_static
     qt_advanced_docking
     plotjuggler_base
     plotjuggler_qwt
     QCodeEditor
+    nlohmann_json
+    lua
+    sol2
     )
 
-if(COMPILING_WITH_CATKIN)
-
-    target_link_libraries(plotjuggler ${catkin_LIBRARIES} )
-
-    install(TARGETS plotjuggler
-        ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
-        LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
-        RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
-        )
-
-elseif(COMPILING_WITH_AMENT)
+if(COMPILING_WITH_AMENT)
 
     ament_target_dependencies(plotjuggler ament_index_cpp rclcpp)
-
     install(TARGETS plotjuggler
         DESTINATION lib/${PROJECT_NAME} )
 else()
