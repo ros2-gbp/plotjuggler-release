@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.10.2)
 
-PROJECT(plotjuggler LANGUAGES C CXX VERSION 3.10.3)
+PROJECT(plotjuggler LANGUAGES C CXX VERSION 3.10.4)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -19,8 +19,8 @@ add_definitions(
 #add_definitions( -DPJ_DEFAULT_ARGS="${PJ_DEFAULT_ARGS}")
 
 option(ENABLE_ASAN "Enable Address Sanitizer" OFF)
-option(BASE_AS_SHARED "Build the base library as a shared libary" OFF)
-option(BUILDING_WITH_CONAN "Using Conan for depenencies" OFF)
+option(BASE_AS_SHARED "Build the base library as a shared library" OFF)
+option(BUILDING_WITH_CONAN "Using Conan for dependencies" OFF)
 
 IF (NOT WIN32 AND ENABLE_ASAN)
   set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-omit-frame-pointer -fsanitize=address")
@@ -158,9 +158,14 @@ include(cmake/find_or_download_dependencies.cmake)
 
 find_or_download_dependencies()
 
-add_subdirectory( 3rdparty )
+add_subdirectory( 3rdparty/qwt/src )
+add_subdirectory( 3rdparty/QCodeEditor )
+add_subdirectory( 3rdparty/color_widgets )
+add_subdirectory( 3rdparty/Qt-Advanced-Docking )
 
-
+if (NOT WIN32)
+  add_subdirectory( 3rdparty/backward-cpp )
+endif()
 
 #########################  BASE library  ####################################
 
