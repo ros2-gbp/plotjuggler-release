@@ -109,6 +109,11 @@ if (NOT WIN32)
     add_backward(plotjuggler)
 endif()
 
+if(APPIMAGE_BUILD)
+    message(STATUS "Building PlotJuggler as an AppImage")
+    target_compile_definitions(plotjuggler PRIVATE APPIMAGE_BUILD)
+endif()
+
 target_include_directories(plotjuggler
     PRIVATE
         $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/3rdparty/color_widgets/include>
@@ -128,7 +133,11 @@ target_link_libraries(plotjuggler
         lua::lua
     )
 
-if(COMPILING_WITH_AMENT)
+if(COMPILING_WITH_CATKIN)
+    target_link_libraries(plotjuggler PRIVATE
+        ${catkin_LIBRARIES}
+    )
+elseif(COMPILING_WITH_AMENT)
 
     target_link_libraries(plotjuggler PRIVATE
         ament_index_cpp::ament_index_cpp
