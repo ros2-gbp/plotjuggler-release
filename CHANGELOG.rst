@@ -2,6 +2,40 @@
 Changelog for package plotjuggler
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+3.10.9 (2025-07-08)
+-------------------
+* add Arrow to conan and fix Windows CI (`#1109 <https://github.com/facontidavide/PlotJuggler/issues/1109>`_)
+* modernize cmake
+* apply formatting to cmakelists
+* Fix compilation with recent protobuf (`#1108 <https://github.com/facontidavide/PlotJuggler/issues/1108>`_)
+* Change behavior of DataLoadCSV::readDataFromFile to skip incomplete/corrupted lines.
+* Fix line numbers in DataLoadCVS::readDataFromFile.
+  Line numbers within the error/warning messages boxes didn't show the correct line numbers if the CVS file contained empty lines.
+* Contributors: Davide Faconti, Silvio Traversaro, Valentin Platzgummer
+
+3.10.8 (2025-06-26)
+-------------------
+* fix ROS package
+* Feat/cmakelist namespace (`#1099 <https://github.com/facontidavide/PlotJuggler/issues/1099>`_)
+  * add namespace when using plotjuggler, include macrodependency
+  * use namespace
+* Fix core22 snap by updating CMake config and pinning snapcraft to 7.x (`#1098 <https://github.com/facontidavide/PlotJuggler/issues/1098>`_)
+* fix linking to roscpp when required (`#1102 <https://github.com/facontidavide/PlotJuggler/issues/1102>`_)
+* minor speed improvement
+* avoid overhead in GUI when loading MCAP
+* WIP changes
+* fix windows compilation (`#1094 <https://github.com/facontidavide/PlotJuggler/issues/1094>`_)
+* Contributors: Davide Faconti, Michael Görner, giusebar
+
+3.10.7 (2025-06-16)
+-------------------
+* fix mcap on ROS2
+* update sol2
+* Add button to delete custom timeseries (`#1093 <https://github.com/facontidavide/PlotJuggler/issues/1093>`_)
+  * Add button to delete custom timeseries
+  * Remove tailing whitespace
+* Contributors: Davide Faconti, Zach Davis
+
 3.10.5 (2025-05-25)
 -------------------
 * More cmake fixes
