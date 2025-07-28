@@ -1,7 +1,16 @@
-add_library(ParserLineInflux SHARED line_parser.cpp line_parser.h)
 
-target_link_libraries(ParserLineInflux PRIVATE Qt5::Widgets plotjuggler_base)
+add_definitions(${QT_DEFINITIONS})
+add_definitions(-DQT_PLUGIN)
 
-target_compile_definitions(ParserLineInflux PRIVATE QT_PLUGIN)
 
-install(TARGETS ParserLineInflux DESTINATION ${PJ_PLUGIN_INSTALL_DIRECTORY})
+add_library(ParserLineInflux SHARED
+    line_parser.cpp
+    line_parser.h )
+
+target_link_libraries(ParserLineInflux
+    ${Qt5Widgets_LIBRARIES}
+    plotjuggler_base)
+
+
+install(TARGETS ParserLineInflux
+    DESTINATION ${PJ_PLUGIN_INSTALL_DIRECTORY}  )

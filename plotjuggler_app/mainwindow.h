@@ -39,7 +39,8 @@ class MainWindow : public QMainWindow
   Q_OBJECT
 
 public:
-  explicit MainWindow(const QCommandLineParser& commandline_parser, QWidget* parent = nullptr);
+  explicit MainWindow(const QCommandLineParser& commandline_parser,
+                      QWidget* parent = nullptr);
 
   ~MainWindow();
 

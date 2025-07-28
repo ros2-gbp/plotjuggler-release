@@ -19,7 +19,8 @@ std::vector<const PlotData*>& TransformFunction::dataSources()
   return _src_vector;
 }
 
-void TransformFunction::setData(PlotDataMapRef* data, const std::vector<const PlotData*>& src_vect,
+void TransformFunction::setData(PlotDataMapRef* data,
+                                const std::vector<const PlotData*>& src_vect,
                                 std::vector<PlotData*>& dst_vect)
 {
   if (numInputs() >= 0 && src_vect.size() != numInputs())

@@ -48,6 +48,7 @@ struct MoveDataRet
   bool data_pushed = false;
 };
 
-MoveDataRet MoveData(PlotDataMapRef& source, PlotDataMapRef& destination, bool remove_older);
+MoveDataRet MoveData(PlotDataMapRef& source, PlotDataMapRef& destination,
+                     bool remove_older);
 
 #endif  // UTILS_H

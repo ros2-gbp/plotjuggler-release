@@ -60,7 +60,8 @@ public:
    *                       - rosbag::MessageInstance::getMessageDefinition()
    *                       - ros::message_traits::Definition< __your_type__ >::value()
    * */
-  Parser(const std::string& topic_name, const ROSType& msg_type, const std::string& definition);
+  Parser(const std::string& topic_name, const ROSType& msg_type,
+         const std::string& definition);
 
   enum MaxArrayPolicy : bool
   {
@@ -217,7 +218,8 @@ public:
     return nullptr;
   }
 
-  const FlatMessage* deserialize(const std::string& topic_name, Span<const uint8_t> buffer)
+  const FlatMessage* deserialize(const std::string& topic_name,
+                                 Span<const uint8_t> buffer)
   {
     auto it = _pack.find(topic_name);
     if (it != _pack.end())

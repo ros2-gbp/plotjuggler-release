@@ -1,12 +1,16 @@
-include_directories(../)
 
-set(SRC datastream_sample.cpp)
+include_directories( ../ )
 
-add_library(DataStreamSample SHARED ${SRC} ${UI_SRC})
+add_definitions(${QT_DEFINITIONS})
+add_definitions(-DQT_PLUGIN)
 
-target_link_libraries(DataStreamSample PRIVATE Qt5::Widgets Qt5::Xml
-                                               plotjuggler_base)
+SET( SRC datastream_sample.cpp)
 
-target_compile_definitions(DataStreamSample PRIVATE QT_PLUGIN)
+add_library(DataStreamSample SHARED ${SRC} ${UI_SRC}  )
 
-install(TARGETS DataStreamSample DESTINATION ${PJ_PLUGIN_INSTALL_DIRECTORY})
+target_link_libraries(DataStreamSample
+    ${Qt5Widgets_LIBRARIES}
+    ${Qt5Xml_LIBRARIES}
+    plotjuggler_base)
+
+install(TARGETS DataStreamSample DESTINATION ${PJ_PLUGIN_INSTALL_DIRECTORY}  )

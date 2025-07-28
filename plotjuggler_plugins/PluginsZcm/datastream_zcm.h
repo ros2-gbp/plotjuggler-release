@@ -31,7 +31,8 @@ public:
 
   virtual bool isRunning() const override;
 
-  virtual bool xmlSaveState(QDomDocument& doc, QDomElement& parent_element) const override;
+  virtual bool xmlSaveState(QDomDocument& doc,
+                            QDomElement& parent_element) const override;
 
   virtual bool xmlLoadState(const QDomElement& parent_element) override;
 
@@ -45,8 +46,8 @@ private:
 
   zcm::Subscription* _subs = nullptr;
 
-  static void processData(const std::string& name, zcm_field_type_t type, const void* data,
-                          void* usr);
+  static void processData(const std::string& name, zcm_field_type_t type,
+                          const void* data, void* usr);
 
   std::vector<std::pair<std::string, double>> _numerics;
   std::vector<std::pair<std::string, std::string>> _strings;

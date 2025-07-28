@@ -9,12 +9,15 @@
 #include "qwt_painter.h"
 
 BackgroundColorItem::BackgroundColorItem(const PJ::PlotData& data, QString colormap_name)
-  : _data(data), _data_name(QString::fromStdString(data.plotName())), _colormap_name(colormap_name)
+  : _data(data)
+  , _data_name(QString::fromStdString(data.plotName()))
+  , _colormap_name(colormap_name)
 {
 }
 
 void BackgroundColorItem::draw(QPainter* painter, const QwtScaleMap& xMap,
-                               const QwtScaleMap& /*yMap*/, const QRectF& canvasRect) const
+                               const QwtScaleMap& /*yMap*/,
+                               const QRectF& canvasRect) const
 {
   if (_data.size() < 2)
   {

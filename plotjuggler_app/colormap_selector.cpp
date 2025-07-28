@@ -20,7 +20,8 @@ ColormapSelectorDialog::ColormapSelectorDialog(QString series, QString default_c
   if (default_colormap.isEmpty())
   {
     QSettings settings;
-    default_colormap = settings.value("ColormapSelectorDialog::prevColorMap", "").toString();
+    default_colormap =
+        settings.value("ColormapSelectorDialog::prevColorMap", "").toString();
   }
 
   for (auto it : ColorMapLibrary())

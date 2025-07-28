@@ -28,7 +28,8 @@ const std::vector<const char*>& DataLoadULog::compatibleFileExtensions() const
   return extensions;
 }
 
-bool DataLoadULog::readDataFromFile(FileLoadInfo* fileload_info, PlotDataMapRef& plot_data)
+bool DataLoadULog::readDataFromFile(FileLoadInfo* fileload_info,
+                                    PlotDataMapRef& plot_data)
 {
   const auto& filename = fileload_info->filename;
 

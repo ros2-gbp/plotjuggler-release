@@ -1,14 +1,22 @@
-include_directories(../)
 
-qt5_wrap_ui(UI_SRC quaternion_to_rpy.ui)
+include_directories( ../ )
 
-add_library(ToolboxQuaternion SHARED toolbox_quaternion.cpp
-                                     quaternion_to_rpy.cpp ${UI_SRC})
+add_definitions(${QT_DEFINITIONS})
+add_definitions(-DQT_PLUGIN)
 
-target_link_libraries(
-  ToolboxQuaternion PRIVATE Qt5::Widgets Qt5::Xml plotjuggler_base
-                            plotjuggler_qwt)
+QT5_WRAP_UI ( UI_SRC
+    quaternion_to_rpy.ui
+    )
 
-target_compile_definitions(ToolboxQuaternion PRIVATE QT_PLUGIN)
+add_library(ToolboxQuaternion SHARED
+    toolbox_quaternion.cpp
+    quaternion_to_rpy.cpp
+    ${UI_SRC}  )
 
-install(TARGETS ToolboxQuaternion DESTINATION ${PJ_PLUGIN_INSTALL_DIRECTORY})
+target_link_libraries(ToolboxQuaternion
+    ${Qt5Widgets_LIBRARIES}
+    ${Qt5Xml_LIBRARIES}
+    plotjuggler_base
+    plotjuggler_qwt)
+
+install(TARGETS ToolboxQuaternion DESTINATION ${PJ_PLUGIN_INSTALL_DIRECTORY}  )

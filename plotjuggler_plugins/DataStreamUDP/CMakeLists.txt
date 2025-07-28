@@ -1,14 +1,19 @@
-include_directories(../)
 
-qt5_wrap_ui(UI_SRC udp_server.ui)
+include_directories( ../ )
 
-set(SRC udp_server.cpp)
+add_definitions(${QT_DEFINITIONS})
+add_definitions(-DQT_PLUGIN)
 
-add_library(DataStreamUDP SHARED ${SRC} ${UI_SRC})
+QT5_WRAP_UI ( UI_SRC  udp_server.ui  )
 
-target_link_libraries(DataStreamUDP PRIVATE Qt5::Widgets Qt5::Network
-                                            plotjuggler_base)
+SET( SRC udp_server.cpp )
 
-target_compile_definitions(DataStreamUDP PRIVATE QT_PLUGIN)
+add_library(DataStreamUDP SHARED ${SRC} ${UI_SRC}  )
 
-install(TARGETS DataStreamUDP DESTINATION ${PJ_PLUGIN_INSTALL_DIRECTORY})
+target_link_libraries(DataStreamUDP
+    ${Qt5Widgets_LIBRARIES}
+    Qt5::Network
+    plotjuggler_base
+    )
+
+install(TARGETS DataStreamUDP DESTINATION ${PJ_PLUGIN_INSTALL_DIRECTORY}  )

@@ -2,45 +2,6 @@
 Changelog for package plotjuggler
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-3.10.11 (2025-07-26)
---------------------
-* Datatamer fix (`#1131 <https://github.com/facontidavide/PlotJuggler/issues/1131>`_)
-* new clang format
-* Squashed commit of the following:
-  Author: Maximilien Naveau <maximilien.naveau@pal-robotics.com>
-  Date:   Thu Jul 24 12:21:39 2025 +0200
-  Solve the PALStatistics message parsing in case several topic are
-  published.
-* Fix Issues on MacOS Compilation (`#1125 <https://github.com/facontidavide/PlotJuggler/issues/1125>`_)
-* Add no splash to settings (`#1122 <https://github.com/facontidavide/PlotJuggler/issues/1122>`_)
-  * Added option to skip splash screen to settings ini file
-  * Added option to preference screen
-* provide install rule again from catkin build (`#1124 <https://github.com/facontidavide/PlotJuggler/issues/1124>`_)
-  Otherwise catkin install workspaces include everything except for the binary...
-* try fix LZ4/ZSTD (`#1121 <https://github.com/facontidavide/PlotJuggler/issues/1121>`_)
-* Contributors: Connor Anderson, Davide Faconti, Michael Görner, thenoname
-
-3.10.10 (2025-07-11)
---------------------
-* cosmetic change in Preferences
-* Fmt cpm (`#1120 <https://github.com/facontidavide/PlotJuggler/issues/1120>`_)
-* Make export plot size an application param
-* Add an action to plot a whole tab
-* fix missing submodule
-* fix Win CI
-* Contributors: Blaise Le Coquil, Davide Faconti
-
-3.10.9 (2025-07-08)
--------------------
-* add Arrow to conan and fix Windows CI (`#1109 <https://github.com/facontidavide/PlotJuggler/issues/1109>`_)
-* modernize cmake
-* apply formatting to cmakelists
-* Fix compilation with recent protobuf (`#1108 <https://github.com/facontidavide/PlotJuggler/issues/1108>`_)
-* Change behavior of DataLoadCSV::readDataFromFile to skip incomplete/corrupted lines.
-* Fix line numbers in DataLoadCVS::readDataFromFile.
-  Line numbers within the error/warning messages boxes didn't show the correct line numbers if the CVS file contained empty lines.
-* Contributors: Davide Faconti, Silvio Traversaro, Valentin Platzgummer
-
 3.10.8 (2025-06-26)
 -------------------
 * fix ROS package

@@ -26,8 +26,6 @@ public:
 
   DockToolbar* toolBar();
 
-  QString name() const;
-
 public slots:
   DockWidget* splitHorizontal();
 
@@ -75,12 +73,8 @@ public slots:
 
   void on_stylesheetChanged(QString theme);
 
-  void savePlotsToFile();
-
 private:
   void restoreSplitter(QDomElement elem, DockWidget* widget);
-
-  QRect plotRelativeFootprint(int index, QSize plot_size) const;
 
   QString _name;
 
