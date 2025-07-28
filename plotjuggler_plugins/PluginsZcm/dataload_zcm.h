@@ -28,7 +28,8 @@ public:
 
   const std::vector<const char*>& compatibleFileExtensions() const override;
 
-  bool readDataFromFile(PJ::FileLoadInfo* fileload_info, PlotDataMapRef& destination) override;
+  bool readDataFromFile(PJ::FileLoadInfo* fileload_info,
+                        PlotDataMapRef& destination) override;
 
   bool xmlSaveState(QDomDocument& doc, QDomElement& parent_element) const override;
 

@@ -1,26 +1,27 @@
+
+
 find_package(Qt5 QUIET COMPONENTS WebSockets)
 
-if(NOT Qt5WebSockets_FOUND)
-  message(
-    STATUS
-      "Can't find Qt5WebSockets in your system. Have you tried [sudo apt-get install libqt5websockets5-dev] ?"
-  )
+if( NOT Qt5WebSockets_FOUND)
+    message(STATUS "Can't find Qt5WebSockets in your system. Have you tried [sudo apt-get install libqt5websockets5-dev] ?")
 else()
 
-  include_directories(../)
+    include_directories( ../ )
 
-  qt5_wrap_ui(UI_SRC websocket_server.ui)
+    add_definitions(${QT_DEFINITIONS})
+    add_definitions(-DQT_PLUGIN)
 
-  set(SRC websocket_server.cpp)
+    QT5_WRAP_UI ( UI_SRC  websocket_server.ui  )
 
-  add_library(DataStreamWebSocket SHARED ${SRC} ${UI_SRC})
+    SET( SRC websocket_server.cpp )
 
-  target_link_libraries(DataStreamWebSocket
-                        PRIVATE Qt5::Widgets Qt5::WebSockets plotjuggler_base)
+    add_library(DataStreamWebSocket SHARED ${SRC} ${UI_SRC}  )
 
-  target_compile_definitions(DataStreamWebSocket PRIVATE QT_PLUGIN)
+    target_link_libraries(DataStreamWebSocket
+        ${Qt5Widgets_LIBRARIES}
+        Qt5::WebSockets
+        plotjuggler_base )
 
-  install(TARGETS DataStreamWebSocket
-          DESTINATION ${PJ_PLUGIN_INSTALL_DIRECTORY})
+    install(TARGETS DataStreamWebSocket DESTINATION ${PJ_PLUGIN_INSTALL_DIRECTORY}  )
 
 endif()

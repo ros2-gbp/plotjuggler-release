@@ -124,7 +124,8 @@ void CurveTracker::setPosition(const QPointF& position)
 
     if (!_marker[i]->symbol() || _marker[i]->symbol()->brush().color() != color)
     {
-      QwtSymbol* sym = new QwtSymbol(QwtSymbol::Ellipse, color, QPen(Qt::black), QSize(5, 5));
+      QwtSymbol* sym =
+          new QwtSymbol(QwtSymbol::Ellipse, color, QPen(Qt::black), QSize(5, 5));
       _marker[i]->setSymbol(sym);
     }
 

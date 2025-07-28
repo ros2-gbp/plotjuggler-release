@@ -24,7 +24,8 @@ QWidget* OutlierRemovalFilter::optionsWidget()
   return _widget;
 }
 
-bool OutlierRemovalFilter::xmlSaveState(QDomDocument& doc, QDomElement& parent_element) const
+bool OutlierRemovalFilter::xmlSaveState(QDomDocument& doc,
+                                        QDomElement& parent_element) const
 {
   QDomElement widget_el = doc.createElement("options");
   widget_el.setAttribute("value", ui->spinBoxFactor->value());

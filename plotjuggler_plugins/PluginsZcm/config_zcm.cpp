@@ -85,7 +85,8 @@ void ConfigZCM::on_pushButtonAdd_clicked()
   ui->listWidgetLibs->sortItems();
   if (!files.empty())
   {
-    settings.setValue(_prefix + "::load_dir", QFileInfo(files.front()).dir().absolutePath());
+    settings.setValue(_prefix + "::load_dir",
+                      QFileInfo(files.front()).dir().absolutePath());
   }
 }
 

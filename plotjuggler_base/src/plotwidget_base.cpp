@@ -72,7 +72,8 @@ public:
 
     zoomer->setRubberBandPen(QColor(Qt::red, 1, Qt::DotLine));
     zoomer->setTrackerPen(QColor(Qt::green, 1, Qt::DotLine));
-    zoomer->setMousePattern(QwtEventPattern::MouseSelect1, Qt::LeftButton, Qt::NoModifier);
+    zoomer->setMousePattern(QwtEventPattern::MouseSelect1, Qt::LeftButton,
+                            Qt::NoModifier);
 
     magnifier->setAxisEnabled(QwtPlot::xTop, false);
     magnifier->setAxisEnabled(QwtPlot::yRight, false);
@@ -86,16 +87,19 @@ public:
     panner1->setMouseButton(Qt::LeftButton, Qt::ControlModifier);
     panner2->setMouseButton(Qt::MiddleButton, Qt::NoModifier);
 
-    connect(zoomer, &PlotZoomer::zoomed, this, [this](const QRectF& r) { resized_callback(r); });
+    connect(zoomer, &PlotZoomer::zoomed, this,
+            [this](const QRectF& r) { resized_callback(r); });
 
     connect(magnifier, &PlotMagnifier::rescaled, this, [this](const QRectF& r) {
       resized_callback(r);
       replot();
     });
 
-    connect(panner1, &PlotPanner::rescaled, this, [this](QRectF r) { resized_callback(r); });
+    connect(panner1, &PlotPanner::rescaled, this,
+            [this](QRectF r) { resized_callback(r); });
 
-    connect(panner2, &PlotPanner::rescaled, this, [this](QRectF r) { resized_callback(r); });
+    connect(panner2, &PlotPanner::rescaled, this,
+            [this](QRectF r) { resized_callback(r); });
 
     QwtScaleWidget* bottomAxis = axisWidget(QwtPlot::xBottom);
     QwtScaleWidget* leftAxis = axisWidget(QwtPlot::yLeft);
@@ -302,7 +306,8 @@ void PlotWidgetBase::setModeXY(bool enable)
   _xy_mode = enable;
 }
 
-PlotWidgetBase::PlotWidgetBase(QWidget* parent) : _xy_mode(false), _keep_aspect_ratio(false)
+PlotWidgetBase::PlotWidgetBase(QWidget* parent)
+  : _xy_mode(false), _keep_aspect_ratio(false)
 {
   auto onViewResized = [this](const QRectF& r) { emit viewResized(r); };
 
@@ -365,7 +370,9 @@ PlotWidgetBase::PlotWidgetBase(QWidget* parent) : _xy_mode(false), _keep_aspect_
   qwtPlot()->setAxisAutoScale(QwtPlot::yLeft, true);
   qwtPlot()->setAxisAutoScale(QwtPlot::xBottom, true);
 
-  qwtPlot()->axisScaleEngine(QwtPlot::xBottom)->setAttribute(QwtScaleEngine::Floating, true);
+  qwtPlot()
+      ->axisScaleEngine(QwtPlot::xBottom)
+      ->setAttribute(QwtScaleEngine::Floating, true);
   qwtPlot()->plotLayout()->setAlignCanvasToScales(true);
 
   qwtPlot()->setAxisScale(QwtPlot::xBottom, 0.0, 1.0);
@@ -381,8 +388,8 @@ PlotWidgetBase::~PlotWidgetBase()
   }
 }
 
-PlotWidgetBase::CurveInfo* PlotWidgetBase::addCurve(const std::string& name, PlotDataXY& data,
-                                                    QColor color)
+PlotWidgetBase::CurveInfo* PlotWidgetBase::addCurve(const std::string& name,
+                                                    PlotDataXY& data, QColor color)
 {
   const auto qname = QString::fromStdString(name);
 
@@ -432,7 +439,8 @@ PlotWidgetBase::CurveInfo* PlotWidgetBase::addCurve(const std::string& name, Plo
   marker->attach(qwtPlot());
   marker->setVisible(false);
 
-  QwtSymbol* sym = new QwtSymbol(QwtSymbol::Ellipse, Qt::red, QPen(Qt::black), QSize(8, 8));
+  QwtSymbol* sym =
+      new QwtSymbol(QwtSymbol::Ellipse, Qt::red, QPen(Qt::black), QSize(8, 8));
   marker->setSymbol(sym);
 
   CurveInfo curve_info;
@@ -452,9 +460,10 @@ bool PlotWidgetBase::isEmpty() const
 
 void PlotWidgetBase::removeCurve(const QString& title)
 {
-  auto it = std::find_if(
-      p->curve_list.begin(), p->curve_list.end(),
-      [&title](const PlotWidgetBase::CurveInfo& info) { return info.curve->title() == title; });
+  auto it = std::find_if(p->curve_list.begin(), p->curve_list.end(),
+                         [&title](const PlotWidgetBase::CurveInfo& info) {
+                           return info.curve->title() == title;
+                         });
 
   if (it != p->curve_list.end())
   {
@@ -525,7 +534,8 @@ bool PlotWidgetBase::eventFilter(QObject* obj, QEvent* event)
   QwtScaleWidget* bottomAxis = qwtPlot()->axisWidget(QwtPlot::xBottom);
   QwtScaleWidget* leftAxis = qwtPlot()->axisWidget(QwtPlot::yLeft);
 
-  if (magnifier() && (obj == bottomAxis || obj == leftAxis) && !(isXYPlot() && keepRatioXY()))
+  if (magnifier() && (obj == bottomAxis || obj == leftAxis) &&
+      !(isXYPlot() && keepRatioXY()))
   {
     if (event->type() == QEvent::Wheel)
     {
@@ -582,7 +592,8 @@ bool PlotWidgetBase::eventFilter(QObject* obj, QEvent* event)
       //-------------------
       case QEvent::MouseButtonPress: {
         QMouseEvent* mouse_event = static_cast<QMouseEvent*>(event);
-        if (mouse_event->button() == Qt::LeftButton && mouse_event->modifiers() == Qt::NoModifier)
+        if (mouse_event->button() == Qt::LeftButton &&
+            mouse_event->modifiers() == Qt::NoModifier)
         {
           auto clicked_item = legend()->processMousePressEvent(mouse_event);
           if (clicked_item)
@@ -627,7 +638,8 @@ QColor PlotWidgetBase::getColorHint(PlotDataXY* data)
     }
   }
   QColor color;
-  bool use_plot_color_index = settings.value("Preferences::use_plot_color_index", false).toBool();
+  bool use_plot_color_index =
+      settings.value("Preferences::use_plot_color_index", false).toBool();
   int index = p->curve_list.size();
 
   if (!use_plot_color_index)

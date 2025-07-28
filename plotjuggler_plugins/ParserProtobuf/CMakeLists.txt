@@ -1,39 +1,46 @@
 if(BUILDING_WITH_CONAN)
-  message(STATUS "Finding Protobuf with conan")
-  set(Protobuf_LIBS protobuf::libprotobuf)
+    message(STATUS "Finding Protobuf with conan")
+    set(Protobuf_LIBS protobuf::libprotobuf)
 else()
-  message(STATUS "Finding Protobuf without package managers")
-  find_package(Protobuf QUIET)
-  set(Protobuf_LIBS ${Protobuf_LIBRARIES})
+    message(STATUS "Finding Protobuf without package managers")
+    find_package(Protobuf QUIET)
+    set(Protobuf_LIBS ${Protobuf_LIBRARIES})
 endif()
 
 find_package(Protobuf QUIET)
 
-if(Protobuf_FOUND)
+if( Protobuf_FOUND)
 
-  include_directories(../)
-  message(STATUS "[Protobuf] found")
-  qt5_wrap_ui(UI_SRC protobuf_parser.ui)
+    include_directories( ../ )
+    add_definitions(${QT_DEFINITIONS})
+    add_definitions(-DQT_PLUGIN)
 
-  include_directories(${Protobuf_INCLUDE_DIRS})
+    message(STATUS "[Protobuf] found")
+    QT5_WRAP_UI ( UI_SRC  protobuf_parser.ui )
 
-  add_library(
-    ProtobufParser SHARED error_collectors.cpp protobuf_parser.cpp
-                          protobuf_factory.cpp protobuf_parser.h ${UI_SRC})
+    include_directories(${Protobuf_INCLUDE_DIRS})
 
-  if(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
-    find_library(ABSL_SPINLOCK_WAIT_LIB absl_spinlock_wait)
+    add_library(ProtobufParser SHARED
+        error_collectors.cpp
+        protobuf_parser.cpp
+        protobuf_factory.cpp
+        protobuf_parser.h
+        ${UI_SRC}  )
 
-    target_link_libraries(ProtobufParser PRIVATE ${ABSL_SPINLOCK_WAIT_LIB})
+    if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
+        find_library(ABSL_SPINLOCK_WAIT_LIB absl_spinlock_wait)
 
-    target_compile_definitions(ProtobufParser PRIVATE QT_PLUGIN)
-  endif()
+        target_link_libraries(ProtobufParser ${ABSL_SPINLOCK_WAIT_LIB} )
+    endif()
 
-  target_link_libraries(
-    ProtobufParser PRIVATE Qt5::Widgets Qt5::Xml ${Protobuf_LIBS}
-                           plotjuggler_base plotjuggler_qwt fmt::fmt)
+    target_link_libraries(ProtobufParser
+        ${Qt5Widgets_LIBRARIES}
+        ${Qt5Xml_LIBRARIES}
+        ${Protobuf_LIBS}
+        plotjuggler_base
+        plotjuggler_qwt)
 
-  install(TARGETS ProtobufParser DESTINATION ${PJ_PLUGIN_INSTALL_DIRECTORY})
+    install(TARGETS ProtobufParser DESTINATION ${PJ_PLUGIN_INSTALL_DIRECTORY}  )
 else()
-  message("[Protobuf] not found: skipping compilation of plugin ProtobufParser")
+    message("[Protobuf] not found: skipping compilation of plugin ProtobufParser")
 endif()

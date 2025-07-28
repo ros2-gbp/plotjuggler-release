@@ -14,7 +14,7 @@ BreakBeforeBinaryOperators: false
 BreakBeforeTernaryOperators: false
 BreakConstructorInitializers: BeforeComma
 BinPackParameters: true
-ColumnLimit: 100
+ColumnLimit: 90
 ConstructorInitializerAllOnOneLineOrOnePerLine: true
 DerivePointerBinding: false
 PointerBindsToType: true
@@ -45,7 +45,6 @@ SpaceBeforeAssignmentOperators: true
 ContinuationIndentWidth: 4
 SortIncludes: false
 SpaceAfterCStyleCast: false
-BreakStringLiterals: false
 
 # Configure each individual brace in BraceWrapping
 BreakBeforeBraces: Custom

@@ -23,7 +23,8 @@ public:
   using Point = typename PlotDataBase<double, Value>::Point;
 
   TimeseriesBase(const std::string& name, PlotGroup::Ptr group)
-    : PlotDataBase<double, Value>(name, group), _max_range_x(std::numeric_limits<double>::max())
+    : PlotDataBase<double, Value>(name, group)
+    , _max_range_x(std::numeric_limits<double>::max())
   {
   }
 
@@ -108,7 +109,8 @@ inline int TimeseriesBase<Value>::getIndexFromX(double x) const
   {
     return -1;
   }
-  auto lower = std::lower_bound(_points.begin(), _points.end(), Point(x, {}), TimeCompare);
+  auto lower =
+      std::lower_bound(_points.begin(), _points.end(), Point(x, {}), TimeCompare);
   auto index = std::distance(_points.begin(), lower);
 
   if (index >= _points.size())

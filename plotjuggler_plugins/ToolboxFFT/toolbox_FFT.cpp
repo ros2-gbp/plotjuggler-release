@@ -21,7 +21,8 @@ ToolboxFFT::ToolboxFFT()
 
   connect(ui->buttonBox, &QDialogButtonBox::rejected, this, &ToolboxPlugin::closed);
 
-  connect(ui->pushButtonCalculate, &QPushButton::clicked, this, &ToolboxFFT::calculateCurveFFT);
+  connect(ui->pushButtonCalculate, &QPushButton::clicked, this,
+          &ToolboxFFT::calculateCurveFFT);
 
   connect(ui->pushButtonSave, &QPushButton::clicked, this, &ToolboxFFT::onSaveCurve);
 
@@ -51,7 +52,8 @@ void ToolboxFFT::init(PJ::PlotDataMapRef& src_data, PJ::TransformsMap& transform
 
   _plot_widget_A->setAcceptDrops(true);
 
-  connect(_plot_widget_A, &PlotWidgetBase::dragEnterSignal, this, &ToolboxFFT::onDragEnterEvent);
+  connect(_plot_widget_A, &PlotWidgetBase::dragEnterSignal, this,
+          &ToolboxFFT::onDragEnterEvent);
 
   connect(_plot_widget_A, &PlotWidgetBase::dropSignal, this, &ToolboxFFT::onDropEvent);
 
