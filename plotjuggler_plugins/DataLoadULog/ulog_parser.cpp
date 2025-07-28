@@ -153,10 +153,6 @@ void ULogParser::parseDataMessage(const ULogParser::Subscription& sub, char* mes
   }
   Timeseries& timeseries = ts_it->second;
 
-  uint64_t time_val = *reinterpret_cast<uint64_t*>(message);
-  timeseries.timestamps.push_back(time_val);
-  message += sizeof(uint64_t);
-
   size_t index = 0;
   parseSimpleDataMessage(timeseries, sub.format, message, &index);
 }
@@ -173,8 +169,16 @@ char* ULogParser::parseSimpleDataMessage(Timeseries& timeseries, const Format* f
       continue;
     }
 
+    bool timestamp_done = false;
     for (int array_pos = 0; array_pos < field.array_size; array_pos++)
     {
+      if (*index == format->timestamp_idx && !timestamp_done)
+      {
+        timestamp_done = true;
+        uint64_t time_val = *reinterpret_cast<uint64_t*>(message);
+        timeseries.timestamps.push_back(time_val);
+        message += sizeof(uint64_t);
+      }
       double value = 0;
       switch (field.type)
       {
@@ -311,8 +315,7 @@ size_t ULogParser::fieldsCount(const ULogParser::Format& format) const
   return count;
 }
 
-std::vector<StringView> ULogParser::splitString(const StringView& strToSplit,
-                                                char delimeter)
+std::vector<StringView> ULogParser::splitString(const StringView& strToSplit, char delimeter)
 {
   std::vector<StringView> splitted_strings;
   splitted_strings.reserve(4);
@@ -417,8 +420,7 @@ bool ULogParser::readFileDefinitions(DataStream& datastream)
 
       default:
         printf("unknown log definition type %i, size %i (offset %i)\n",
-               (int)message_header.msg_type, (int)message_header.msg_size,
-               (int)datastream.offset);
+               (int)message_header.msg_type, (int)message_header.msg_size, (int)datastream.offset);
         datastream.offset += message_header.msg_size;
         break;
     }
@@ -442,8 +444,7 @@ bool ULogParser::readFlagBits(DataStream& datastream, uint16_t msg_size)
   uint8_t* incompat_flags = message + 8;
 
   // handle & validate the flags
-  bool contains_appended_data =
-      incompat_flags[0] & ULOG_INCOMPAT_FLAG0_DATA_APPENDED_MASK;
+  bool contains_appended_data = incompat_flags[0] & ULOG_INCOMPAT_FLAG0_DATA_APPENDED_MASK;
   bool has_unknown_incompat_bits = false;
 
   if (incompat_flags[0] & ~0x1)
@@ -619,13 +620,19 @@ bool ULogParser::readFormat(DataStream& datastream, uint16_t msg_size)
 
     if (field.type == UINT64 && field_name == StringView("timestamp"))
     {
-      // skip
+      format.timestamp_idx = format.fields.size();
     }
     else
     {
       field.field_name = field_name.to_string();
       format.fields.push_back(field);
     }
+  }
+
+  if (format.timestamp_idx < 0)
+  {
+    // Required timestamp is not found in definition
+    return false;
   }
 
   format.name = name;
