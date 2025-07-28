@@ -2,6 +2,128 @@
 Changelog for package plotjuggler
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+3.10.11 (2025-07-26)
+--------------------
+* Datatamer fix (`#1131 <https://github.com/facontidavide/PlotJuggler/issues/1131>`_)
+* new clang format
+* Squashed commit of the following:
+  Author: Maximilien Naveau <maximilien.naveau@pal-robotics.com>
+  Date:   Thu Jul 24 12:21:39 2025 +0200
+  Solve the PALStatistics message parsing in case several topic are
+  published.
+* Fix Issues on MacOS Compilation (`#1125 <https://github.com/facontidavide/PlotJuggler/issues/1125>`_)
+* Add no splash to settings (`#1122 <https://github.com/facontidavide/PlotJuggler/issues/1122>`_)
+  * Added option to skip splash screen to settings ini file
+  * Added option to preference screen
+* provide install rule again from catkin build (`#1124 <https://github.com/facontidavide/PlotJuggler/issues/1124>`_)
+  Otherwise catkin install workspaces include everything except for the binary...
+* try fix LZ4/ZSTD (`#1121 <https://github.com/facontidavide/PlotJuggler/issues/1121>`_)
+* Contributors: Connor Anderson, Davide Faconti, Michael Görner, thenoname
+
+3.10.10 (2025-07-11)
+--------------------
+* cosmetic change in Preferences
+* Fmt cpm (`#1120 <https://github.com/facontidavide/PlotJuggler/issues/1120>`_)
+* Make export plot size an application param
+* Add an action to plot a whole tab
+* fix missing submodule
+* fix Win CI
+* Contributors: Blaise Le Coquil, Davide Faconti
+
+3.10.9 (2025-07-08)
+-------------------
+* add Arrow to conan and fix Windows CI (`#1109 <https://github.com/facontidavide/PlotJuggler/issues/1109>`_)
+* modernize cmake
+* apply formatting to cmakelists
+* Fix compilation with recent protobuf (`#1108 <https://github.com/facontidavide/PlotJuggler/issues/1108>`_)
+* Change behavior of DataLoadCSV::readDataFromFile to skip incomplete/corrupted lines.
+* Fix line numbers in DataLoadCVS::readDataFromFile.
+  Line numbers within the error/warning messages boxes didn't show the correct line numbers if the CVS file contained empty lines.
+* Contributors: Davide Faconti, Silvio Traversaro, Valentin Platzgummer
+
+3.10.8 (2025-06-26)
+-------------------
+* fix ROS package
+* Feat/cmakelist namespace (`#1099 <https://github.com/facontidavide/PlotJuggler/issues/1099>`_)
+  * add namespace when using plotjuggler, include macrodependency
+  * use namespace
+* Fix core22 snap by updating CMake config and pinning snapcraft to 7.x (`#1098 <https://github.com/facontidavide/PlotJuggler/issues/1098>`_)
+* fix linking to roscpp when required (`#1102 <https://github.com/facontidavide/PlotJuggler/issues/1102>`_)
+* minor speed improvement
+* avoid overhead in GUI when loading MCAP
+* WIP changes
+* fix windows compilation (`#1094 <https://github.com/facontidavide/PlotJuggler/issues/1094>`_)
+* Contributors: Davide Faconti, Michael Görner, giusebar
+
+3.10.7 (2025-06-16)
+-------------------
+* fix mcap on ROS2
+* update sol2
+* Add button to delete custom timeseries (`#1093 <https://github.com/facontidavide/PlotJuggler/issues/1093>`_)
+  * Add button to delete custom timeseries
+  * Remove tailing whitespace
+* Contributors: Davide Faconti, Zach Davis
+
+3.10.5 (2025-05-25)
+-------------------
+* More cmake fixes
+* Contributors: Davide Faconti
+
+3.10.4 (2025-05-22)
+-------------------
+* add backward again, fix `#1079 <https://github.com/facontidavide/PlotJuggler/issues/1079>`_
+* Contributors: Davide Faconti
+
+3.10.3 (2025-05-21)
+-------------------
+* cmake fixes (again)
+* Cmake cleanups (`#1076 <https://github.com/facontidavide/PlotJuggler/issues/1076>`_)
+* Add missing find_package for plojuggler_qwt (`#1064 <https://github.com/facontidavide/PlotJuggler/issues/1064>`_)
+* improve MCAP loader
+* fix issue in MCAP when one of the parsers fail
+* Contributors: AlessandroCanossa, Davide Faconti
+
+3.10.0 (2025-04-30)
+-------------------
+* Release 3.10 (`#1067 <https://github.com/facontidavide/PlotJuggler/issues/1067>`_)
+* statistics: add avg interval (`#979 <https://github.com/facontidavide/PlotJuggler/issues/979>`_)
+* Add parsing support for tsl messages (`#1043 <https://github.com/facontidavide/PlotJuggler/issues/1043>`_)
+  * first working version
+  * update clang format
+* Fix IPv6 multicast (`#1050 <https://github.com/facontidavide/PlotJuggler/issues/1050>`_)
+  * Ignore default AppImage build
+  * Fix IPv6 UDP multicast
+* Update macOS compile instructions (`#1058 <https://github.com/facontidavide/PlotJuggler/issues/1058>`_)
+* latest data_tamer
+* fix ParseIDL
+* Update Dockerfile
+* 3.10 (`#1041 <https://github.com/facontidavide/PlotJuggler/issues/1041>`_) refacto 3rdparty dependencies and fix MCAP plugin + build on MacOS
+* dataload_mcap: real progress bar and share mcap file path between plugins (`#1040 <https://github.com/facontidavide/PlotJuggler/issues/1040>`_)
+  * dataload_mcap: add mcap file path toUserDefined
+  Include the MCAP file path in PlotJuggler's user-defined data so
+  that other plugins can access and utilize it.
+  Co-authored-by: Michele Guzzinati <michele.guzzinati@hipert.it>
+  * dataload_mcap: add real progress bar
+  Add the real range of the progress bar during mcap loading, so users
+  can accurately track the real loading progress.
+  Co-authored-by: Michele Guzzinati <michele.guzzinati@hipert.it>
+  ---------
+  Co-authored-by: Michele Guzzinati <michele.guzzinati@hipert.it>
+* Rebased and pre-commit checked (`#951 <https://github.com/facontidavide/PlotJuggler/issues/951>`_)
+* linter
+* DataLoadMCAP: add support to mcap logTime (`#1037 <https://github.com/facontidavide/PlotJuggler/issues/1037>`_)
+  The DataLoadMCAP plugin support only the publishTime of the mcap
+  message. Add a radio button in the load dialog to select the
+  logTime or publishTime.
+* Feature: add float precision setting (`#1021 <https://github.com/facontidavide/PlotJuggler/issues/1021>`_)
+* fix(ulog): the index of the timestamp may be non-zero (`#1016 <https://github.com/facontidavide/PlotJuggler/issues/1016>`_)
+  The previous parsing assumed that the timestamp for a ulog data series
+  was always at index 0, which is often, but not necessarily the case. The
+  parser now store the correct index when parsing the definition.
+* fix broken parquet parsing when parquet file contains 'invalid' columns (`#1034 <https://github.com/facontidavide/PlotJuggler/issues/1034>`_)
+* Minor typo fixes (`#1027 <https://github.com/facontidavide/PlotJuggler/issues/1027>`_)
+* Contributors: Ahmet KÖKEN, Bryce Schober, Davide Faconti, Henrique Ferrolho, Jacob Dahl, Kevin M, Knut Hjorth, Luca Bartoli, PalmEmil, Sebastiano Taddei, Simon Sagmeister
+
 3.9.2 (2024-05-08)
 ------------------
 * Save NlohmannParser (JSON) settings (`#971 <https://github.com/facontidavide/PlotJuggler/issues/971>`_)
@@ -504,7 +626,7 @@ Changelog for package plotjuggler
 * fix issue when starting streaming plugins (add placeholders)
 * string series seems to work
 * WIP
-* embracing C++17 and new data strucutre to accomodate more types
+* embracing C++17 and new data structure to accommodate more types
 * Updated support for windows build + installer (`#396 <https://github.com/facontidavide/PlotJuggler/issues/396>`_)
   Added win32build.bat batch file for easy windows builds (need to update QT path variables inside to correct ones in case it does not work)
 * Fix issue `#453 <https://github.com/facontidavide/PlotJuggler/issues/453>`_, `#419 <https://github.com/facontidavide/PlotJuggler/issues/419>`_ and `#405 <https://github.com/facontidavide/PlotJuggler/issues/405>`_ . Ulog path in Windows
@@ -566,7 +688,7 @@ Changelog for package plotjuggler
 * Add plugin folders in the preference dialog
 * fix issue `#370 <https://github.com/PlotJuggler/PlotJuggler/issues/370>`_: libDataStreamMQTT compilation with Clang
 * fix command line options
-* change the way ROS path are added t othe list of plugins
+* change the way ROS path are added to the list of plugins
 * fixing windows builds, for real this time. (`#379 <https://github.com/PlotJuggler/PlotJuggler/issues/379>`_)
 * fix bug when datapoints are cleared
 * remember the directory in the FunctionEditor
@@ -596,7 +718,7 @@ Changelog for package plotjuggler
 
 3.0.4 (2020-12-04)
 ------------------
-* Lua ans Sol updated (c++17
+* Lua and Sol updated (c++17
 * bug fix `#350 <https://github.com/PlotJuggler/PlotJuggler/issues/350>`_ (crash in lua)
 * Contributors: Davide Faconti
 
@@ -631,8 +753,8 @@ Changelog for package plotjuggler
 2.8.3 (2020-07-11)
 ------------------
 * more memes
-* "New versione vailable" improved
-* fix segmentation fault when tryin reconnect to ROS master
+* "New version available" improved
+* fix segmentation fault when trying reconnect to ROS master
 * Contributors: Davide Faconti
 
 2.8.2 (2020-07-07)
@@ -723,7 +845,7 @@ Changelog for package plotjuggler
 * Bugfix/executable (`#264 <https://github.com/facontidavide/PlotJuggler/issues/264>`_)
   * created launching script , installing and making use of it in the icon
   * ignoring temporary folders when creating binary locally
-  * corrected intsallation of script
+  * corrected installation of script
   * using PROGRAM to install it with executable permissions
   Co-authored-by: Jorge Rodriguez <jr@blue-ocean-robotics.com>
 * Feature/scalable icon (`#265 <https://github.com/facontidavide/PlotJuggler/issues/265>`_)
@@ -769,7 +891,7 @@ Changelog for package plotjuggler
 * Adding custom parser for Imu message (issue `#238 <https://github.com/facontidavide/PlotJuggler/issues/238>`_)
 * remember the last value in the function editor
 * minor update
-* Both javascript and Lua langiages can be selected in preferences
+* Both javascript and Lua languages can be selected in preferences
 * WIP to support both QML and Lua
 * fix menu bar size of PlotJuggler
 * scripting moved to Lua
@@ -954,14 +1076,14 @@ Changelog for package plotjuggler
 * On MacOS there are several mime formats generated in addition to "curveslist", this fix will keep curves array with names collected instead of resetting it for each new mime format. (#159)
 * ulog_parser: fixed parsing of array topics (#157)
   Signed-off-by: Roman <bapstroman@gmail.com>
-* fis issue  #156 : catch expections
+* fix issue  #156 : catch exceptions
 * remember if the state of _action_clearBuffer
 * QSettings cleanups
 * Contributors: Alexey Zaparovanny, Davide Faconti, Roman Bapst
 
 2.1.6 (2019-03-07)
 ------------------
-* removed obsolate question
+* removed obsolete question
 * remember RemoveTimeOffset state
 * add clear buffer from data stream
 * reject non valid data
@@ -1021,7 +1143,7 @@ Changelog for package plotjuggler
 * cleanup
 * fix issue with Datetime and cheatsheet dialog
 * further stylesheet refinements
-* fixing visualization of fucntion editor dialog
+* fixing visualization of function editor dialog
 * fixing html of cheatsheet
 * Contributors: Davide Faconti
 
@@ -1077,7 +1199,7 @@ Changelog for package plotjuggler
 2.0.2 (2019-01-23)
 ------------------
 * should solve issue #127 : stop publishers when data reloaded or deleted
-* fixing issues whe disabling an already disabled publisher
+* fixing issues when disabling an already disabled publisher
 * solved problem with time slider (issue #125)
 * fix issue #126
 * StatePublisher improved
@@ -1221,7 +1343,7 @@ Changelog for package plotjuggler
 
 1.6.0 (2018-05-01)
 ------------------
-* fixed the most annoying bug ever (erroneus DragLeave). issue #80
+* fixed the most annoying bug ever (erroneous DragLeave). issue #80
 * fine tuning the widget spacing
 * added feature #83
 * fix issue #82
@@ -1402,7 +1524,7 @@ Changelog for package plotjuggler
 -------------------
 * added visualization policy to the TimeTracker
 * bug fix in RosoutPublisher
-* added try-catch guard to third party plugins method invokation
+* added try-catch guard to third party plugins method invocation
 * improving documentation
 * multiple fixes
 * shall periodically update the list of curves from the streamer
@@ -1453,7 +1575,7 @@ Changelog for package plotjuggler
 
 0.15.0 (2017-03-17)
 -------------------
-* Multiple problems fixed with streaming interface nd XY plots
+* Multiple problems fixed with streaming interface and XY plots
 * Contributors: Davide Faconti
 
 0.14.2 (2017-03-16)

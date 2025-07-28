@@ -60,8 +60,7 @@ public:
    *                       - rosbag::MessageInstance::getMessageDefinition()
    *                       - ros::message_traits::Definition< __your_type__ >::value()
    * */
-  Parser(const std::string& topic_name, const ROSType& msg_type,
-         const std::string& definition);
+  Parser(const std::string& topic_name, const ROSType& msg_type, const std::string& definition);
 
   enum MaxArrayPolicy : bool
   {
@@ -112,7 +111,7 @@ public:
   }
 
   /**
-   * @brief getSchema provides some metadata amout a registered ROSMessage.
+   * @brief getSchema provides some metadata amount a registered ROSMessage.
    */
   const std::shared_ptr<MessageSchema>& getSchema() const;
 
@@ -128,7 +127,7 @@ public:
    * IMPORTANT: this approach is not meant to be used with use arrays such as maps,
    * point clouds and images.For this reason the argument max_array_size is used.
    *
-   * This funtion is almost always followed by CreateRenamedValues,
+   * This function is almost always followed by CreateRenamedValues,
    * which provide a more human-readable key-value representation.
    *
    * @param buffer         raw memory to be parsed.
@@ -154,7 +153,7 @@ public:
    *
    * @param msg_identifier    String ID to identify the registered message (use
    * registerMessageDefinition first).
-   * @param monitored_type    ROSType that triggers the invokation to the callback
+   * @param monitored_type    ROSType that triggers the invocation to the callback
    * @param buffer            Original buffer, passed as mutable since it might be
    * modified.
    * @param callback          The callback.
@@ -218,8 +217,7 @@ public:
     return nullptr;
   }
 
-  const FlatMessage* deserialize(const std::string& topic_name,
-                                 Span<const uint8_t> buffer)
+  const FlatMessage* deserialize(const std::string& topic_name, Span<const uint8_t> buffer)
   {
     auto it = _pack.find(topic_name);
     if (it != _pack.end())

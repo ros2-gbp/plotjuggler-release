@@ -11,6 +11,7 @@
 #include <QInputDialog>
 #include <QPushButton>
 #include <QSyntaxStyle>
+#include <QRadioButton>
 
 #include <array>
 #include <set>
@@ -121,7 +122,7 @@ DataLoadCSV::DataLoadCSV()
   connect(_ui->listWidgetSeries, &QListWidget::itemDoubleClicked, this,
           [this]() { emit _ui->buttonBox->accepted(); });
 
-  connect(_ui->checkBoxDateFormat, &QCheckBox::toggled, this,
+  connect(_ui->radioCustomTime, &QRadioButton::toggled, this,
           [this](bool checked) { _ui->lineEditDateFormat->setEnabled(checked); });
 
   connect(_ui->dateTimeHelpButton, &QPushButton::clicked, this,
@@ -298,10 +299,16 @@ int DataLoadCSV::launchDialog(QFile& file, std::vector<std::string>* column_name
   QSettings settings;
   _dialog->restoreGeometry(settings.value("DataLoadCSV.geometry").toByteArray());
 
-  _ui->radioButtonIndex->setChecked(
-      settings.value("DataLoadCSV.useIndex", false).toBool());
-  _ui->checkBoxDateFormat->setChecked(
-      settings.value("DataLoadCSV.useDateFormat", false).toBool());
+  _ui->radioButtonIndex->setChecked(settings.value("DataLoadCSV.useIndex", false).toBool());
+  bool use_custom_time = settings.value("DataLoadCSV.useDateFormat", false).toBool();
+  if (use_custom_time)
+  {
+    _ui->radioCustomTime->setChecked(true);
+  }
+  else
+  {
+    _ui->radioAutoTime->setChecked(true);
+  }
   _ui->lineEditDateFormat->setText(
       settings.value("DataLoadCSV.dateFormat", "yyyy-MM-dd hh:mm:ss").toString());
 
@@ -340,8 +347,8 @@ int DataLoadCSV::launchDialog(QFile& file, std::vector<std::string>* column_name
   }
 
   QString theme = settings.value("StyleSheet::theme", "light").toString();
-  auto style_path = (theme == "light") ? ":/resources/lua_style_light.xml" :
-                                         ":/resources/lua_style_dark.xml";
+  auto style_path =
+      (theme == "light") ? ":/resources/lua_style_light.xml" : ":/resources/lua_style_dark.xml";
 
   QFile fl(style_path);
   if (fl.open(QIODevice::ReadOnly))
@@ -356,8 +363,8 @@ int DataLoadCSV::launchDialog(QFile& file, std::vector<std::string>* column_name
   // temporary connection
   std::unique_ptr<QObject> pcontext(new QObject);
   QObject* context = pcontext.get();
-  QObject::connect(_ui->comboBox, qOverload<int>(&QComboBox::currentIndexChanged),
-                   context, [&](int index) {
+  QObject::connect(_ui->comboBox, qOverload<int>(&QComboBox::currentIndexChanged), context,
+                   [&](int index) {
                      const std::array<char, 4> delimiters = { ',', ';', ' ', '\t' };
                      _delimiter = delimiters[std::clamp(index, 0, 3)];
                      _csvHighlighter.delimiter = _delimiter;
@@ -381,7 +388,7 @@ int DataLoadCSV::launchDialog(QFile& file, std::vector<std::string>* column_name
 
   settings.setValue("DataLoadCSV.geometry", _dialog->saveGeometry());
   settings.setValue("DataLoadCSV.useIndex", _ui->radioButtonIndex->isChecked());
-  settings.setValue("DataLoadCSV.useDateFormat", _ui->checkBoxDateFormat->isChecked());
+  settings.setValue("DataLoadCSV.useDateFormat", _ui->radioCustomTime->isChecked());
   settings.setValue("DataLoadCSV.dateFormat", _ui->lineEditDateFormat->text());
 
   if (res == QDialog::Rejected)
@@ -404,6 +411,72 @@ int DataLoadCSV::launchDialog(QFile& file, std::vector<std::string>* column_name
   }
 
   return TIME_INDEX_NOT_DEFINED;
+}
+
+std::optional<double> AutoParseTimestamp(const QString& str)
+{
+  bool is_number = false;
+  QString str_trimmed = str.trimmed();
+  double val = 0.0;
+
+  // Support the case where the timestamp is in nanoseconds / microseconds
+  int64_t ts = str.toLong(&is_number);
+  const int64_t first_ts = 1400000000;  // July 14, 2017
+  const int64_t last_ts = 2000000000;   // May 18, 2033
+  if (is_number)
+  {
+    // check if it is an absolute time in nanoseconds.
+    // convert to seconds if it is
+    if (ts > first_ts * 1e9 && ts < last_ts * 1e9)
+    {
+      val = double(ts) * 1e-9;
+    }
+    else if (ts > first_ts * 1e6 && ts < last_ts * 1e6)
+    {
+      // check if it is an absolute time in microseconds.
+      // convert to seconds if it is
+      val = double(ts) * 1e-6;
+    }
+    else
+    {
+      val = double(ts);
+    }
+  }
+  else
+  {
+    // Try a double value (seconds)
+    val = str.toDouble(&is_number);
+  }
+
+  // handle numbers with comma instead of point as decimal separator
+  if (!is_number)
+  {
+    static QLocale locale_with_comma(QLocale::German);
+    val = locale_with_comma.toDouble(str, &is_number);
+  }
+  if (!is_number)
+  {
+    QDateTime ts = QDateTime::fromString(str, Qt::ISODateWithMs);
+    if (ts.isValid())
+    {
+      return double(ts.toMSecsSinceEpoch()) / 1000.0;
+    }
+    else
+    {
+      return std::nullopt;
+    }
+  }
+  return is_number ? std::optional<double>(val) : std::nullopt;
+};
+
+std::optional<double> FormatParseTimestamp(const QString& str, const QString& format)
+{
+  QDateTime ts = QDateTime::fromString(str, format);
+  if (ts.isValid())
+  {
+    return double(ts.toMSecsSinceEpoch()) / 1000.0;
+  }
+  return std::nullopt;
 }
 
 bool DataLoadCSV::readDataFromFile(FileLoadInfo* info, PlotDataMapRef& plot_data)
@@ -449,7 +522,6 @@ bool DataLoadCSV::readDataFromFile(FileLoadInfo* info, PlotDataMapRef& plot_data
 
   //-----------------------------------
   bool interrupted = false;
-  int linecount = 0;
 
   // count the number of lines first
   int tot_lines = 0;
@@ -468,7 +540,7 @@ bool DataLoadCSV::readDataFromFile(FileLoadInfo* info, PlotDataMapRef& plot_data
   progress_dialog.setWindowTitle("Loading the CSV file");
   progress_dialog.setLabelText("Loading... please wait");
   progress_dialog.setWindowModality(Qt::ApplicationModal);
-  progress_dialog.setRange(0, tot_lines - 1);
+  progress_dialog.setRange(0, tot_lines);
   progress_dialog.setAutoClose(true);
   progress_dialog.setAutoReset(true);
   progress_dialog.show();
@@ -491,59 +563,8 @@ bool DataLoadCSV::readDataFromFile(FileLoadInfo* info, PlotDataMapRef& plot_data
 
   //-----------------
   double prev_time = std::numeric_limits<double>::lowest();
-  bool parse_date_format = _ui->checkBoxDateFormat->isChecked();
-  QString format_string = _ui->lineEditDateFormat->text();
-
-  auto ParseTimestamp = [&](QString str, bool& is_number) {
-    QString str_trimmed = str.trimmed();
-    double val = 0.0;
-    is_number = false;
-    // Support the case where the timestamp is in nanoseconds / microseconds
-    int64_t ts = str_trimmed.toLong(&is_number);
-    const int64_t first_ts = 1400000000;  // July 14, 2017
-    const int64_t last_ts = 2000000000;   // May 18, 2033
-    if (is_number)
-    {
-      // check if it is an absolute time in nanoseconds.
-      // convert to seconds if it is
-      if (ts > first_ts * 1e9 && ts < last_ts * 1e9)
-      {
-        val = double(ts) * 1e-9;
-      }
-      else if (ts > first_ts * 1e6 && ts < last_ts * 1e6)
-      {
-        // check if it is an absolute time in microseconds.
-        // convert to seconds if it is
-        val = double(ts) * 1e-6;
-      }
-      else
-      {
-        val = double(ts);
-      }
-    }
-    else
-    {
-      // Try a double value (seconds)
-      val = str_trimmed.toDouble(&is_number);
-    }
-
-    // handle numbers with comma instead of point as decimal separator
-    if (!is_number)
-    {
-      static QLocale locale_with_comma(QLocale::German);
-      val = locale_with_comma.toDouble(str_trimmed, &is_number);
-    }
-    if (!is_number && parse_date_format && !format_string.isEmpty())
-    {
-      QDateTime ts = QDateTime::fromString(str_trimmed, format_string);
-      is_number = ts.isValid();
-      if (is_number)
-      {
-        val = ts.toMSecsSinceEpoch() / 1000.0;
-      }
-    }
-    return val;
-  };
+  const QString format_string = _ui->lineEditDateFormat->text();
+  const bool parse_date_format = _ui->radioCustomTime->isChecked();
 
   auto ParseNumber = [&](QString str, bool& is_number) {
     QString str_trimmed = str.trimmed();
@@ -554,9 +575,17 @@ bool DataLoadCSV::readDataFromFile(FileLoadInfo* info, PlotDataMapRef& plot_data
       static QLocale locale_with_comma(QLocale::German);
       val = locale_with_comma.toDouble(str_trimmed, &is_number);
     }
-    if (!is_number && parse_date_format && !format_string.isEmpty())
+    if (!is_number)
     {
-      QDateTime ts = QDateTime::fromString(str_trimmed, format_string);
+      QDateTime ts;
+      if (parse_date_format)
+      {
+        ts = QDateTime::fromString(str_trimmed, format_string);
+      }
+      else
+      {
+        ts = QDateTime::fromString(str_trimmed, Qt::ISODateWithMs);
+      }
       is_number = ts.isValid();
       if (is_number)
       {
@@ -578,9 +607,17 @@ bool DataLoadCSV::readDataFromFile(FileLoadInfo* info, PlotDataMapRef& plot_data
   QString t_str;
   QString prev_t_str;
 
+  int linenumber = 1;
+  int samplecount = 0;
+
+  std::vector<std::pair<long, QString>> skipped_lines;
+  bool skipped_wrong_column = false;
+  bool skipped_invalid_timestamp = false;
+
   while (!in.atEnd())
   {
     QString line = in.readLine();
+    linenumber++;
     SplitLine(line, _delimiter, string_items);
 
     // empty line? just try skipping
@@ -589,79 +626,72 @@ bool DataLoadCSV::readDataFromFile(FileLoadInfo* info, PlotDataMapRef& plot_data
       continue;
     }
 
+    // corrupted line? just try skipping
     if (string_items.size() != column_names.size())
     {
-      QMessageBox msgBox;
-      msgBox.setWindowTitle(tr("Error reading file"));
-      msgBox.setText(tr("The number of values at line %1 is %2,\n"
-                        "but the expected number of columns is %3.\n"
-                        "Aborting...")
-                         .arg(linecount + 2)
-                         .arg(string_items.size())
-                         .arg(column_names.size()));
-
-      msgBox.setDetailedText(tr("File: \"%1\" \n\n"
-                                "Error reading file | Mismatched field count\n"
-                                "Delimiter: [%2]\n"
-                                "Header fields: %6\n"
-                                "Fields on line [%4]: %7\n\n"
-                                "File Preview:\n"
-                                "[1]%3\n"
-                                "[...]\n"
-                                "[%4]%5\n")
-                                 .arg(_fileInfo->filename)
-                                 .arg(_delimiter)
-                                 .arg(header_str)
-                                 .arg(linecount + 2)
-                                 .arg(line)
-                                 .arg(column_names.size())
-                                 .arg(string_items.size()));
-
-      QPushButton* abortButton = msgBox.addButton(QMessageBox::Ok);
-
-      msgBox.setIcon(QMessageBox::Warning);
-
-      msgBox.exec();
-
-      return false;
+      if (!skipped_wrong_column)
+      {
+        auto ret = QMessageBox::warning(nullptr, "Unexpected column count",
+                                        tr("Line %1 has %2 columns, but the expected number of "
+                                           "columns is %3.\n Do you want to continue?")
+                                            .arg(linenumber)
+                                            .arg(string_items.size())
+                                            .arg(column_names.size()),
+                                        QMessageBox::Yes | QMessageBox::Abort, QMessageBox::Yes);
+        if (ret == QMessageBox::Abort)
+        {
+          return false;
+        }
+      }
+      skipped_wrong_column = true;
+      skipped_lines.emplace_back(linenumber, "wrong column count");
+      continue;
     }
 
-    double timestamp = linecount;
+    double timestamp = samplecount;
 
     if (time_index >= 0)
     {
-      bool is_number = false;
       t_str = string_items[time_index];
-      timestamp = ParseTimestamp(t_str, is_number);
+      const auto time_trimm = t_str.trimmed();
+      bool is_number = false;
+      if (parse_date_format)
+      {
+        if (auto ts = FormatParseTimestamp(time_trimm, format_string))
+        {
+          is_number = true;
+          timestamp = *ts;
+        }
+      }
+      else
+      {
+        if (auto ts = AutoParseTimestamp(time_trimm))
+        {
+          is_number = true;
+          timestamp = *ts;
+        }
+      }
+
       time_header_str = header_string_items[time_index];
 
       if (!is_number)
       {
-        QMessageBox msgBox;
-        msgBox.setWindowTitle(tr("Error reading file"));
-        msgBox.setText(tr("Couldn't parse timestamp on line %1 with string \"%2\" . "
-                          "Aborting.\n")
-                           .arg(linecount + 1)
-                           .arg(t_str));
-
-        msgBox.setDetailedText(tr("File: \"%1\" \n\n"
-                                  "Error reading file | Couldn't parse timestamp\n"
-                                  "Parsing format: [%4]\n"
-                                  "Time at line %2 : [%3]\n")
-                                   .arg(_fileInfo->filename)
-                                   .arg(linecount + 1)
-                                   .arg(t_str)
-                                   .arg((parse_date_format && !format_string.isEmpty()) ?
-                                            format_string :
-                                            "None"));
-
-        QPushButton* abortButton = msgBox.addButton(QMessageBox::Ok);
-
-        msgBox.setIcon(QMessageBox::Warning);
-
-        msgBox.exec();
-
-        return false;
+        if (!skipped_invalid_timestamp)
+        {
+          auto ret = QMessageBox::warning(nullptr, "Error parsing timestamp",
+                                          tr("Line %1 has an invalid timestamp: "
+                                             "\"%2\".\n Do you want to continue?")
+                                              .arg(linenumber)
+                                              .arg(t_str),
+                                          QMessageBox::Yes | QMessageBox::Abort, QMessageBox::Yes);
+          if (ret == QMessageBox::Abort)
+          {
+            return false;
+          }
+        }
+        skipped_invalid_timestamp = true;
+        skipped_lines.emplace_back(linenumber, "invalid timestamp");
+        continue;
       }
 
       if (prev_time > timestamp && !sortRequired)
@@ -681,15 +711,14 @@ bool DataLoadCSV::readDataFromFile(FileLoadInfo* info, PlotDataMapRef& plot_data
                                   "Time at line %2 : %3\n"
                                   "Time at line %4 : %5")
                                    .arg(_fileInfo->filename)
-                                   .arg(linecount + 1)
+                                   .arg(linenumber - 1)
                                    .arg(prev_t_str)
-                                   .arg(linecount + 2)
+                                   .arg(linenumber)
                                    .arg(t_str)
                                    .arg(time_index)
                                    .arg(timeName));
 
-        QPushButton* sortButton =
-            msgBox.addButton(tr("Continue"), QMessageBox::ActionRole);
+        QPushButton* sortButton = msgBox.addButton(tr("Continue"), QMessageBox::ActionRole);
         QPushButton* abortButton = msgBox.addButton(QMessageBox::Abort);
         msgBox.setIcon(QMessageBox::Warning);
         msgBox.exec();
@@ -727,9 +756,9 @@ bool DataLoadCSV::readDataFromFile(FileLoadInfo* info, PlotDataMapRef& plot_data
       }
     }
 
-    if (linecount++ % 100 == 0)
+    if (linenumber % 100 == 0)
     {
-      progress_dialog.setValue(linecount);
+      progress_dialog.setValue(linenumber);
       QApplication::processEvents();
       if (progress_dialog.wasCanceled())
       {
@@ -737,6 +766,7 @@ bool DataLoadCSV::readDataFromFile(FileLoadInfo* info, PlotDataMapRef& plot_data
         break;
       }
     }
+    samplecount++;
   }
 
   if (interrupted)
@@ -773,6 +803,25 @@ bool DataLoadCSV::readDataFromFile(FileLoadInfo* info, PlotDataMapRef& plot_data
       plot_data.numeric.erase(plot_data.numeric.find(name));
     }
   }
+
+  // Warn the user if some lines have been skipped.
+  if (!skipped_lines.empty())
+  {
+    QMessageBox msgBox;
+    msgBox.setWindowTitle(tr("Some lines have been skipped"));
+    msgBox.setText(tr("Some lines were not parsed as expected. "
+                      "This indicates an issue with the input data."));
+    QString detailed_text;
+    for (const auto& line : skipped_lines)
+    {
+      detailed_text += tr("Line %1: %2\n").arg(line.first).arg(line.second);
+    }
+    msgBox.setDetailedText(detailed_text);
+    msgBox.addButton(tr("Continue"), QMessageBox::ActionRole);
+    msgBox.setIcon(QMessageBox::Warning);
+    msgBox.exec();
+  }
+
   return true;
 }
 
@@ -783,7 +832,7 @@ bool DataLoadCSV::xmlSaveState(QDomDocument& doc, QDomElement& parent_element) c
   elem.setAttribute("delimiter", _ui->comboBox->currentIndex());
 
   QString date_format;
-  if (_ui->checkBoxDateFormat->isChecked())
+  if (_ui->radioCustomTime->isChecked())
   {
     elem.setAttribute("date_format", _ui->lineEditDateFormat->text());
   }
@@ -822,8 +871,12 @@ bool DataLoadCSV::xmlLoadState(const QDomElement& parent_element)
   }
   if (elem.hasAttribute("date_format"))
   {
-    _ui->checkBoxDateFormat->setChecked(true);
+    _ui->radioCustomTime->setChecked(true);
     _ui->lineEditDateFormat->setText(elem.attribute("date_format"));
+  }
+  else
+  {
+    _ui->radioAutoTime->setChecked(true);
   }
   return true;
 }
