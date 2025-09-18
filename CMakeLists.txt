@@ -3,7 +3,7 @@ cmake_minimum_required(VERSION 3.16)
 project(
   plotjuggler
   LANGUAGES C CXX
-  VERSION 3.10.11)
+  VERSION 3.12.0)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -49,13 +49,9 @@ if(catkin_FOUND)
   find_package(catkin REQUIRED COMPONENTS roslib roscpp)
 
   catkin_package(
-    INCLUDE_DIRS
-    plotjuggler_base/include
-    LIBRARIES
-    plotjuggler_base
-    CATKIN_DEPENDS
-    roslib
-    roscpp)
+    INCLUDE_DIRS plotjuggler_base/include
+    LIBRARIES plotjuggler_base
+    CATKIN_DEPENDS roslib roscpp)
 
   message(STATUS ${catkin_INCLUDE_DIRS})
 
@@ -68,6 +64,7 @@ elseif(ament_cmake_FOUND)
   find_package(ament_cmake REQUIRED)
   find_package(ament_index_cpp REQUIRED)
   find_package(rclcpp REQUIRED)
+
   include_directories(${ament_index_cpp_INCLUDE_DIRS})
 
   message(STATUS "--------------------------------------------------")
@@ -166,9 +163,6 @@ find_or_download_json()
 
 include(cmake/find_or_download_fmt.cmake)
 find_or_download_fmt()
-
-include(cmake/find_or_download_fastcdr.cmake)
-find_or_download_fastcdr()
 
 add_subdirectory(3rdparty/qwt/src)
 add_subdirectory(3rdparty/QCodeEditor)
