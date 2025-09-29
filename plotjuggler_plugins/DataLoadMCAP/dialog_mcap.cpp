@@ -77,6 +77,7 @@ DialogMCAP::DialogMCAP(const std::unordered_map<int, mcap::ChannelPtr>& channels
     ui->radioSkip->setChecked(true);
   }
   ui->spinBox->setValue(params.max_array_size);
+  ui->spinBox->setFocusPolicy(Qt::ClickFocus);
   ui->checkBoxUseTimestamp->setChecked(params.use_timestamp);
   if (params.use_mcap_log_time)
   {
@@ -124,6 +125,10 @@ DialogMCAP::DialogMCAP(const std::unordered_map<int, mcap::ChannelPtr>& channels
                                                               Qt::SortOrder::AscendingOrder;
   auto sort_count = params.sorted_column % columns_count;
   ui->tableWidget->sortByColumn(sort_count, sort_order);
+
+  // Connect topic filter QLineEdit to filtering logic
+  connect(ui->lineEditFilter, &QLineEdit::textChanged, this,
+          &DialogMCAP::on_lineEditFilter_textChanged);
 }
 
 DialogMCAP::~DialogMCAP()
@@ -183,4 +188,24 @@ void DialogMCAP::accept()
   settings.setValue(prefix + "selected", selected_topics);
 
   QDialog::accept();
+}
+
+void DialogMCAP::on_lineEditFilter_textChanged(const QString& search_string)
+{
+  QStringList spaced_items = search_string.split(' ');
+  for (int row = 0; row < ui->tableWidget->rowCount(); row++)
+  {
+    auto item = ui->tableWidget->item(row, 0);
+    QString name = item ? item->text() : "";
+    bool toHide = false;
+    for (const auto& filter : spaced_items)
+    {
+      if (!name.contains(filter))
+      {
+        toHide = true;
+        break;
+      }
+    }
+    ui->tableWidget->setRowHidden(row, toHide);
+  }
 }
