@@ -3,7 +3,7 @@ cmake_minimum_required(VERSION 3.16)
 project(
   plotjuggler
   LANGUAGES C CXX
-  VERSION 3.12.0)
+  VERSION 3.13.0)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -164,6 +164,9 @@ find_or_download_json()
 include(cmake/find_or_download_fmt.cmake)
 find_or_download_fmt()
 
+include(cmake/find_or_download_wasmtime.cmake)
+find_or_download_wasmtime()
+
 add_subdirectory(3rdparty/qwt/src)
 add_subdirectory(3rdparty/QCodeEditor)
 add_subdirectory(3rdparty/color_widgets)
@@ -272,6 +275,7 @@ install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/plotjuggler.svg
 
 # ######################## Main App, Libraries and Plugins
 # ##############################################################################
+# check the architecture (x86)
 
 add_subdirectory(plotjuggler_app)
 add_subdirectory(plotjuggler_plugins)
