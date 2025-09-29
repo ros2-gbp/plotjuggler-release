@@ -87,7 +87,9 @@ PlotWidget::PlotWidget(PlotDataMapRef& datamap, QWidget* parent)
   qwtPlot()->setAcceptDrops(true);
 
   //--------------------------
-  _tracker = (new CurveTracker(qwtPlot()));
+  _tracker = (new CurveTracker(qwtPlot(), Qt::red));
+  _reference_tracker = (new CurveTracker(qwtPlot(), Qt::blue));
+  _reference_tracker->setParameter(CurveTracker::LINE_ONLY);
 
   _grid = new QwtPlotGrid();
   _grid->setPen(QPen(Qt::gray, 0.0, Qt::DotLine));
@@ -113,13 +115,6 @@ PlotWidget::PlotWidget(PlotDataMapRef& datamap, QWidget* parent)
   _custom_Y_limits.min = (-MAX_DOUBLE);
   _custom_Y_limits.max = (MAX_DOUBLE);
 
-  _reference_line_marker = new QwtPlotMarker();
-
-  _reference_line_marker->setLinePen(QPen(Qt::blue));
-  _reference_line_marker->setLineStyle(QwtPlotMarker::VLine);
-  _reference_line_marker->attach(qwtPlot());
-  _reference_line_marker->setVisible(false);
-
   QwtSymbol* sym = new QwtSymbol(QwtSymbol::Ellipse, Qt::black, QPen(Qt::black), QSize(5, 5));
 
   _show_point_marker = (new QwtPlotMarker);
@@ -128,13 +123,6 @@ PlotWidget::PlotWidget(PlotDataMapRef& datamap, QWidget* parent)
 
   _show_point_text = new QwtPlotMarker();
   _show_point_text->attach(qwtPlot());
-
-  //  QwtScaleWidget* bottomAxis = qwtPlot()->axisWidget( QwtPlot::xBottom );
-  //  QwtScaleWidget* leftAxis = qwtPlot()->axisWidget( QwtPlot::yLeft );
-
-  //  bottomAxis->installEventFilter(this);
-  //  leftAxis->installEventFilter(this);
-  //  qwtPlot()->canvas()->installEventFilter(this);
 }
 
 PlotWidget::~PlotWidget()
@@ -422,6 +410,8 @@ PlotWidgetBase::CurveInfo* PlotWidget::addCurve(const std::string& name, QColor 
       timeseries->setTimeOffset(_time_offset);
     }
   }
+  _tracker->redraw();
+  _reference_tracker->redraw();
   return info;
 }
 
@@ -429,6 +419,7 @@ void PlotWidget::removeCurve(const QString& title)
 {
   PlotWidgetBase::removeCurve(title);
   _tracker->redraw();
+  _reference_tracker->redraw();
 }
 
 void PlotWidget::onDataSourceRemoved(const std::string& src_name)
@@ -1081,6 +1072,13 @@ void PlotWidget::on_changeTimeOffset(double offset)
 {
   auto prev_offset = _time_offset;
   _time_offset = offset;
+  // move the trackers
+  if (!isXYPlot())
+  {
+    double prev_tracker = _tracker->actualPosition().x();
+    double new_tracker = prev_tracker + (prev_offset - offset);
+    _tracker->setPosition(QPointF(new_tracker, 0.0));
+  }
 
   if (fabs(prev_offset - offset) > std::numeric_limits<double>::epsilon())
   {
@@ -1268,17 +1266,23 @@ void PlotWidget::onBackgroundColorRequest(QString name)
   }
 }
 
-void PlotWidget::onReferenceLineChecked(bool checked)
+void PlotWidget::onReferenceLineChecked(bool checked, double reference_value)
 {
+  if (isXYPlot())
+  {
+    return;
+  }
+
   if (checked)
   {
-    _reference_line_marker->setVisible(true);
-    _reference_line_marker->setValue(_tracker->actualPosition());
-    _tracker->setReferencePosition(_tracker->actualPosition());
+    QPointF reference_point(reference_value - _time_offset, 0);
+    _reference_tracker->setEnabled(true);
+    _reference_tracker->setPosition(reference_point);
+    _tracker->setReferencePosition(reference_point);
   }
   if (!checked)
   {
-    _reference_line_marker->setVisible(false);
+    _reference_tracker->setEnabled(false);
     _tracker->setReferencePosition(std::nullopt);
   }
   qwtPlot()->replot();
@@ -1572,7 +1576,8 @@ void PlotWidget::showPointValues(QPoint point)
 
   if (updated)
   {
-    QPointF offset_point = paint_to_plot(plot_to_paint(marker_point) + QPoint(15, -20));
+    const QPoint marker_pos_paint = plot_to_paint(marker_point);
+    const QPointF offset_point = paint_to_plot(marker_pos_paint + QPoint(15, -20));
 
     QwtText mark_text;
     mark_text.setText(text);
@@ -1580,6 +1585,7 @@ void PlotWidget::showPointValues(QPoint point)
     QColor background_color = qwtPlot()->palette().background().color();
     background_color.setAlpha(220);
     mark_text.setBackgroundBrush(background_color);
+
     QFont font = QFontDatabase::systemFont(QFontDatabase::FixedFont);
     font.setPointSize(9);
     mark_text.setFont(font);
@@ -1587,6 +1593,18 @@ void PlotWidget::showPointValues(QPoint point)
     _show_point_text->setLabel(mark_text);
     _show_point_text->setLabelAlignment(Qt::AlignRight);
     _show_point_text->setValue(offset_point);
+
+    const double canvas_width = qwtPlot()->canvas()->width();
+    const double text_width = mark_text.textSize().width();
+    const double text_right_edge = marker_pos_paint.x() + 20 + text_width;
+
+    const bool flip_horizontally =
+        (marker_pos_paint.x() > (canvas_width * 0.5)) && text_right_edge > canvas_width;
+
+    if (flip_horizontally)
+    {
+      _show_point_text->setValue(paint_to_plot(marker_pos_paint + QPoint(-15 - text_width, -20)));
+    }
   }
 
   if (updated || disappeared)
