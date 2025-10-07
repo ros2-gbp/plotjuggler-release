@@ -3,6 +3,11 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 qt5_add_resources(RES_SRC resource.qrc)
 
+if(WIN32)
+  # Adds icon to plotjuggler.exe
+  set(RES_SRC ${RES_SRC} plotjuggler.rc)
+endif()
+
 qt5_wrap_ui(
   UI_SRC
   aboutdialog.ui
@@ -31,9 +36,9 @@ qt5_wrap_ui(
   transforms/samples_count.ui
   cheatsheet/cheatsheet_dialog.ui)
 
-set(PLOtJUGGLER_SRC
+set(PLOTJUGGLER_SRC
     cheatsheet/cheatsheet_dialog.cpp
-    customtracker.cpp
+    curve_tracker.cpp
     multifile_prefix.cpp
     colormap_editor.cpp
     colormap_selector.cpp
@@ -47,7 +52,7 @@ set(PLOtJUGGLER_SRC
     messageparser_base.cpp
     menubar.cpp
     new_release_dialog.cpp
-    # plotlegend.cpp
+    plugin_manager.cpp
     plotwidget.cpp
     plotwidget_editor.cpp
     plotwidget_transforms.cpp
@@ -76,14 +81,24 @@ set(PLOtJUGGLER_SRC
     transforms/samples_count.cpp
     transforms/first_derivative.cpp
     transforms/scale_transform.cpp
+    transforms/time_since_previous_point.cpp
     utils.h
     utils.cpp
     mainwindow.h
     realslider.h
     nlohmann_parsers.cpp)
 
-add_executable(plotjuggler ${PLOtJUGGLER_SRC} ${RES_SRC} ${UI_SRC}
+if(wasmtime_FOUND)
+  list(APPEND PLOTJUGGLER_SRC wasm_runtime.cpp wasm_parser.cpp)
+endif()
+
+add_executable(plotjuggler ${PLOTJUGGLER_SRC} ${RES_SRC} ${UI_SRC}
                            ${BACKWARD_ENABLE})
+
+if(wasmtime_FOUND)
+  target_link_libraries(plotjuggler PRIVATE wasmtime::wasmtime)
+  target_compile_definitions(plotjuggler PRIVATE WASM_RUNTIME_ENABLED)
+endif()
 
 if(NOT WIN32)
   add_backward(plotjuggler)
@@ -101,6 +116,7 @@ target_include_directories(
     $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/3rdparty/Qt-Advanced-Docking/include>
     $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/3rdparty/QCodeEditor/include>)
 
+
 target_link_libraries(
   plotjuggler
   PRIVATE ${QT_LINK_LIBRARIES}
@@ -111,7 +127,8 @@ target_link_libraries(
           QCodeEditor
           nlohmann_json::nlohmann_json
           fmt::fmt
-          lua::lua)
+          lua::lua
+        )
 
 if(COMPILING_WITH_CATKIN)
   target_link_libraries(plotjuggler PRIVATE ${catkin_LIBRARIES})
