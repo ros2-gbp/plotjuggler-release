@@ -2,6 +2,121 @@
 Changelog for package plotjuggler
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+3.13.2 (2025-10-07)
+-------------------
+* Fix issue `#1194 <https://github.com/facontidavide/PlotJuggler/issues/1194>`_
+* address issue `#1195 <https://github.com/facontidavide/PlotJuggler/issues/1195>`_
+* fix issue `#1193 <https://github.com/facontidavide/PlotJuggler/issues/1193>`_
+* bug fix
+* Contributors: Davide Faconti
+
+3.13.1 (2025-10-01)
+-------------------
+* [Feature] New Filter to display the time since the previous datapoint (`#1180 <https://github.com/facontidavide/PlotJuggler/issues/1180>`_)
+  * add new filter to get the time since the last data point
+  * rename for clarity
+* fix LZ4 and ZSTD (`#1188 <https://github.com/facontidavide/PlotJuggler/issues/1188>`_)
+* fix issue `#1189 <https://github.com/facontidavide/PlotJuggler/issues/1189>`_
+* make library rosx static
+* Contributors: Davide Faconti, Simon Sagmeister
+
+3.13.0 (2025-09-29)
+-------------------
+* Merge branch 'plugin_manager'
+* fix CI
+* add WASM based pligins (experimental)
+* add Ankel unordered map
+* minor changes
+* Merge pull request `#1185 <https://github.com/facontidavide/PlotJuggler/issues/1185>`_ from simonsag96/fix_tab_add_button
+  [Bugfix] Add Tab Button being placed outside plot widget
+* Fix tab adding button being placed outside plot widget
+* Merge pull request `#1184 <https://github.com/facontidavide/PlotJuggler/issues/1184>`_ from MichelJansson/feature/fix-windows-icon
+* Fixed windows app icon + moved resource file
+* created plugin manager
+* Contributors: Davide Faconti, Michel Jansson, Simon Sagmeister
+
+3.12.2 (2025-09-29)
+-------------------
+* Merge pull request `#1147 <https://github.com/facontidavide/PlotJuggler/issues/1147>`_ from gvz/nix_flake
+* fix zstd installing headers and libraries
+* flip the text if on the right size of the canvas
+* Use CurveTracker for the reference line
+* Update dependencies needed for macOS installation (`#1155 <https://github.com/facontidavide/PlotJuggler/issues/1155>`_)
+  On following the instructions for compiling in macOS on a new machine I ran into errors during the build. Installing git-lfs solved the issue
+* Make spin box in MCAP Dialog to click focus (`#1179 <https://github.com/facontidavide/PlotJuggler/issues/1179>`_)
+* [Feature] Add topic filtering into the mcap dialog (`#1181 <https://github.com/facontidavide/PlotJuggler/issues/1181>`_)
+* add gold sponsors to readme
+* enable parquet plugin in nix build
+* fix Qt plugin loading in nix build
+* remove libmcap from nix build
+* flake: add more dependencies
+* add nix flake
+* Contributors: David Byrne, Davide Faconti, Georg von Zengen, Simon Sagmeister, bigFin
+
+3.12.0 (2025-09-17)
+-------------------
+* rosx_introspection updated
+* fix minimum cmake
+* formatting
+* giving up on MCAP
+* new reference bar
+* Merge pull request `#1164 <https://github.com/facontidavide/PlotJuggler/issues/1164>`_ from matthew-t-watson/main
+  Fix atan bug in lua `quat_to_yaw` and `quat_to_roll` conversions for lua versions <5.3
+* Fix atan bug in quat_to_x conversions
+* Contributors: Davide Faconti, Matthew T. Watson
+
+3.11.1 (2025-09-03)
+-------------------
+* Update windows.yaml
+* Update ubuntu.yaml
+* git pushMerge branch 'main' of github.com:facontidavide/PlotJuggler
+* refactored Parquet plugin
+* CI: rename .deb file before uploading
+  fixes the uploading of the artifacts, without this the file can not be
+  found in the release upload
+  CI: rename .deb file before uploading
+  fixes the uploading of the artifacts, without this the file can not be
+  found in the release upload
+* Contributors: Davide Faconti, Georg von Zengen
+
+3.11.0 (2025-08-31)
+-------------------
+* Merge pull request `#1157 <https://github.com/facontidavide/PlotJuggler/issues/1157>`_ from facontidavide/conan_builds
+  Conan builds
+* merge PR `#1139 <https://github.com/facontidavide/PlotJuggler/issues/1139>`_ and  `#1141 <https://github.com/facontidavide/PlotJuggler/issues/1141>`_ (from @gvz)
+* fix mqtt username and password swap (`#1159 <https://github.com/facontidavide/PlotJuggler/issues/1159>`_)
+  fixes  `#1158 <https://github.com/facontidavide/PlotJuggler/issues/1158>`_
+* fix parquet
+* let CPM download LZ4 and ZSTD
+* fix conan builds
+* fix(ulog_parser): allow messages without timestamp field (`#1154 <https://github.com/facontidavide/PlotJuggler/issues/1154>`_)
+  use a fixed increment when no timestamp is logged
+* build debian packages in github actions (`#1146 <https://github.com/facontidavide/PlotJuggler/issues/1146>`_)
+  * build debian in actions
+  * add ubuntu:24.04 build
+  will enable ubuntu builds
+  * upload .deb files to releases
+  ---------
+  Co-authored-by: Georg von Zengen <georg.vonzengen@isaraerospace.com>
+* Add core24 snap (`#1100 <https://github.com/facontidavide/PlotJuggler/issues/1100>`_)
+  * add core24 snap
+  * add snap core24 github action
+* rename FindMosquitto.cmake to FindMOSQUITTO.cmake (`#1140 <https://github.com/facontidavide/PlotJuggler/issues/1140>`_)
+  fixes `#1138 <https://github.com/facontidavide/PlotJuggler/issues/1138>`_
+  Co-authored-by: Georg von Zengen <georg.vonzengen@isaraerospace.com>
+* Fix error 127 from linuxdeploy in Docker builds (`#1149 <https://github.com/facontidavide/PlotJuggler/issues/1149>`_)
+  * dockerfile: set APPIMAGE_EXTRACT_AND_RUN so linuxdeploy-qt works in Docker
+  The Qt plugin is a separate AppImage, and the CLI flag doesn’t propagate.
+  Exporting the env var makes both linuxdeploy and the plugin run in extract-and-run
+  mode, avoiding FUSE and fixing exit code 127 in container builds.
+  * dockerfile: fix warning from inconsistent case
+* Fix protobuf compilation on linux hosts (`#1143 <https://github.com/facontidavide/PlotJuggler/issues/1143>`_)
+  * fix PROTOBUF_FOUND for case sentitive systems
+  * fix compiler error in ParserProtobuf on linux
+  ---------
+  Co-authored-by: Georg von Zengen <georg.vonzengen@isaraerospace.com>
+* Contributors: Davide Faconti, Georg von Zengen, Mathieu Bresciani, giusebar, Øyvind Taksdal Stubhaug
+
 3.10.11 (2025-07-26)
 --------------------
 * Datatamer fix (`#1131 <https://github.com/facontidavide/PlotJuggler/issues/1131>`_)

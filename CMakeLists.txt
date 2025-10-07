@@ -3,7 +3,7 @@ cmake_minimum_required(VERSION 3.16)
 project(
   plotjuggler
   LANGUAGES C CXX
-  VERSION 3.10.11)
+  VERSION 3.13.2)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -49,13 +49,9 @@ if(catkin_FOUND)
   find_package(catkin REQUIRED COMPONENTS roslib roscpp)
 
   catkin_package(
-    INCLUDE_DIRS
-    plotjuggler_base/include
-    LIBRARIES
-    plotjuggler_base
-    CATKIN_DEPENDS
-    roslib
-    roscpp)
+    INCLUDE_DIRS plotjuggler_base/include
+    LIBRARIES plotjuggler_base
+    CATKIN_DEPENDS roslib roscpp)
 
   message(STATUS ${catkin_INCLUDE_DIRS})
 
@@ -68,6 +64,7 @@ elseif(ament_cmake_FOUND)
   find_package(ament_cmake REQUIRED)
   find_package(ament_index_cpp REQUIRED)
   find_package(rclcpp REQUIRED)
+
   include_directories(${ament_index_cpp_INCLUDE_DIRS})
 
   message(STATUS "--------------------------------------------------")
@@ -151,7 +148,6 @@ include_directories(
   ${Qt5OpenGL_INCLUDE_DIRS})
 
 # ########################  3rd party dependencies  #########################
-
 include(FetchContent)
 include(cmake/CPM.cmake)
 
@@ -167,8 +163,21 @@ find_or_download_json()
 include(cmake/find_or_download_fmt.cmake)
 find_or_download_fmt()
 
-include(cmake/find_or_download_fastcdr.cmake)
-find_or_download_fastcdr()
+# IMPORTANT: LZ4 and ZSTD must be included after Arrow, since Arrow also includes
+# Findlz4Alt.cmake and FindzstdAlt.cmake and we want to avoid target conflicts
+find_package(Arrow QUIET)
+
+include(${PROJECT_SOURCE_DIR}/cmake/find_or_download_lz4.cmake)
+find_or_download_lz4()
+
+include(${PROJECT_SOURCE_DIR}/cmake/find_or_download_zstd.cmake)
+find_or_download_zstd()
+
+if(NOT COMPILING_WITH_AMENT)
+  include(cmake/download_wasmtime.cmake)
+  download_wasmtime()
+endif()
+
 
 add_subdirectory(3rdparty/qwt/src)
 add_subdirectory(3rdparty/QCodeEditor)
@@ -278,6 +287,7 @@ install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/plotjuggler.svg
 
 # ######################## Main App, Libraries and Plugins
 # ##############################################################################
+# check the architecture (x86)
 
 add_subdirectory(plotjuggler_app)
 add_subdirectory(plotjuggler_plugins)
