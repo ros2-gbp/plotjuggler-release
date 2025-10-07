@@ -575,18 +575,18 @@ void MainWindow::initializePlugins()
   {
     loader->setParserFactories(&_parser_factories);
   }
+  int pub_row = 0;
   for (const auto& [plugin_name, publisher] : _plugin_manager.statePublishers())
   {
     publisher->setDataMap(&_mapped_plot_data);
 
     ui->layoutPublishers->setColumnStretch(0, 1.0);
 
-    int row = _plugin_manager.statePublishers().size() - 1;
     auto label = new QLabel(plugin_name, ui->framePublishers);
-    ui->layoutPublishers->addWidget(label, row, 0);
+    ui->layoutPublishers->addWidget(label, pub_row, 0);
 
     auto start_checkbox = new QCheckBox(ui->framePublishers);
-    ui->layoutPublishers->addWidget(start_checkbox, row, 1);
+    ui->layoutPublishers->addWidget(start_checkbox, pub_row, 1);
     start_checkbox->setFocusPolicy(Qt::FocusPolicy::NoFocus);
 
     connect(start_checkbox, &QCheckBox::toggled, this,
@@ -599,14 +599,14 @@ void MainWindow::initializePlugins()
     {
       QFrame* empty = new QFrame(ui->framePublishers);
       empty->setFixedSize({ 22, 22 });
-      ui->layoutPublishers->addWidget(empty, row, 2);
+      ui->layoutPublishers->addWidget(empty, pub_row, 2);
     }
     else
     {
       auto options_button = new QPushButton(ui->framePublishers);
       options_button->setFlat(true);
       options_button->setFixedSize({ 24, 24 });
-      ui->layoutPublishers->addWidget(options_button, row, 2);
+      ui->layoutPublishers->addWidget(options_button, pub_row, 2);
 
       options_button->setIcon(LoadSvg(":/resources/svg/settings_cog.svg", "light"));
       options_button->setIconSize({ 16, 16 });
@@ -626,6 +626,7 @@ void MainWindow::initializePlugins()
         options_button->setIcon(LoadSvg(":/resources/svg/settings_cog.svg", style));
       });
     }
+    pub_row++;
   }
 
   for (const auto& [plugin_name, streamer] : _plugin_manager.dataStreamers())
@@ -1697,7 +1698,19 @@ void MainWindow::dropEvent(QDropEvent* event)
 
   for (const auto& url : urls)
   {
-    file_names << QDir::toNativeSeparators(url.toLocalFile());
+    const auto local_file = url.toLocalFile();
+    // check if the URL is a folder instead of a file
+    QFileInfo fileinfo(local_file);
+    if (fileinfo.exists() && fileinfo.isFile())
+    {
+      file_names << QDir::toNativeSeparators(local_file);
+    }
+    else
+    {
+      QMessageBox::warning(
+          this, tr("Error"),
+          tr("The dropped item is not a valid file and will be ignored:\n [%1]").arg(local_file));
+    }
   }
 
   loadDataFromFiles(file_names);
