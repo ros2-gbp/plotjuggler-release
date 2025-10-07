@@ -87,7 +87,9 @@ PlotWidget::PlotWidget(PlotDataMapRef& datamap, QWidget* parent)
   qwtPlot()->setAcceptDrops(true);
 
   //--------------------------
-  _tracker = (new CurveTracker(qwtPlot()));
+  _tracker = (new CurveTracker(qwtPlot(), Qt::red));
+  _reference_tracker = (new CurveTracker(qwtPlot(), Qt::blue));
+  _reference_tracker->setParameter(CurveTracker::LINE_ONLY);
 
   _grid = new QwtPlotGrid();
   _grid->setPen(QPen(Qt::gray, 0.0, Qt::DotLine));
@@ -113,12 +115,14 @@ PlotWidget::PlotWidget(PlotDataMapRef& datamap, QWidget* parent)
   _custom_Y_limits.min = (-MAX_DOUBLE);
   _custom_Y_limits.max = (MAX_DOUBLE);
 
-  //  QwtScaleWidget* bottomAxis = qwtPlot()->axisWidget( QwtPlot::xBottom );
-  //  QwtScaleWidget* leftAxis = qwtPlot()->axisWidget( QwtPlot::yLeft );
+  QwtSymbol* sym = new QwtSymbol(QwtSymbol::Ellipse, Qt::black, QPen(Qt::black), QSize(5, 5));
 
-  //  bottomAxis->installEventFilter(this);
-  //  leftAxis->installEventFilter(this);
-  //  qwtPlot()->canvas()->installEventFilter(this);
+  _show_point_marker = (new QwtPlotMarker);
+  _show_point_marker->attach(qwtPlot());
+  _show_point_marker->setSymbol(sym);
+
+  _show_point_text = new QwtPlotMarker();
+  _show_point_text->attach(qwtPlot());
 }
 
 PlotWidget::~PlotWidget()
@@ -406,6 +410,8 @@ PlotWidgetBase::CurveInfo* PlotWidget::addCurve(const std::string& name, QColor 
       timeseries->setTimeOffset(_time_offset);
     }
   }
+  _tracker->redraw();
+  _reference_tracker->redraw();
   return info;
 }
 
@@ -413,6 +419,7 @@ void PlotWidget::removeCurve(const QString& title)
 {
   PlotWidgetBase::removeCurve(title);
   _tracker->redraw();
+  _reference_tracker->redraw();
 }
 
 void PlotWidget::onDataSourceRemoved(const std::string& src_name)
@@ -441,6 +448,7 @@ void PlotWidget::onDataSourceRemoved(const std::string& src_name)
   if (deleted)
   {
     _tracker->redraw();
+    _reference_tracker->redraw();
     emit curveListChanged();
   }
   if (_background_item && _background_item->dataName() == QString::fromStdString(src_name))
@@ -455,6 +463,7 @@ void PlotWidget::removeAllCurves()
   PlotWidgetBase::removeAllCurves();
   setModeXY(false);
   _tracker->redraw();
+  _reference_tracker->redraw();
   _flip_x->setChecked(false);
   _flip_y->setChecked(false);
 }
@@ -793,7 +802,15 @@ bool PlotWidget::xmlLoadState(QDomElement& plot_widget, bool autozoom)
         QDomElement transform_el = curve_element.firstChildElement("transform");
         if (ts && transform_el.isNull() == false)
         {
-          ts->setTransform(transform_el.attribute("name"));
+          if (!ts->setTransform(transform_el.attribute("name")) || !ts->transform())
+          {
+            QMessageBox::warning(
+                qwtPlot(), "Warning",
+                tr("Can't restore the transform for curve [%1].\n"
+                   "Transform [%2] not found.\nAre you using an old configuration file?")
+                    .arg(curve_name, transform_el.attribute("name")));
+            continue;
+          }
           ts->transform()->xmlLoadState(transform_el);
           ts->updateCache(true);
           auto alias = transform_el.attribute("alias");
@@ -1031,6 +1048,7 @@ void PlotWidget::configureTracker(CurveTracker::Parameter val)
 void PlotWidget::enableTracker(bool enable)
 {
   _tracker->setEnabled(enable && !isXYPlot());
+  _reference_tracker->setEnabled(enable && !isXYPlot());
 }
 
 bool PlotWidget::isTrackerEnabled() const
@@ -1065,6 +1083,13 @@ void PlotWidget::on_changeTimeOffset(double offset)
 {
   auto prev_offset = _time_offset;
   _time_offset = offset;
+  // move the trackers
+  if (!isXYPlot())
+  {
+    double prev_tracker = _tracker->actualPosition().x();
+    double new_tracker = prev_tracker + (prev_offset - offset);
+    _tracker->setPosition(QPointF(new_tracker, 0.0));
+  }
 
   if (fabs(prev_offset - offset) > std::numeric_limits<double>::epsilon())
   {
@@ -1250,6 +1275,33 @@ void PlotWidget::onBackgroundColorRequest(QString name)
     }
     replot();
   }
+}
+
+void PlotWidget::onReferenceLineChecked(bool checked, double reference_value)
+{
+  if (isXYPlot())
+  {
+    return;
+  }
+
+  if (checked)
+  {
+    QPointF reference_point(reference_value - _time_offset, 0);
+    _reference_tracker->setEnabled(true);
+    _reference_tracker->setPosition(reference_point);
+    _tracker->setReferencePosition(reference_point);
+  }
+  if (!checked)
+  {
+    _reference_tracker->setEnabled(false);
+    _tracker->setReferencePosition(std::nullopt);
+  }
+  qwtPlot()->replot();
+}
+
+void PlotWidget::onShowPlot(bool checked)
+{
+  _show_point_enabled = checked;
 }
 
 void PlotWidget::setStatisticsTitle(QString title)
@@ -1478,6 +1530,100 @@ void PlotWidget::on_pasteAction_triggered()
   }
 }
 
+void PlotWidget::showPointValues(QPoint point)
+{
+  if (!_show_point_enabled)
+  {
+    return;
+  }
+  const QwtPlotItemList curves = qwtPlot()->itemList(QwtPlotItem::Rtti_PlotCurve);
+
+  auto paint_to_plot = [this](QPoint p) {
+    return QPointF(qwtPlot()->invTransform(QwtPlot::xBottom, p.x()),
+                   qwtPlot()->invTransform(QwtPlot::yLeft, p.y()));
+  };
+  auto plot_to_paint = [this](QPointF p) {
+    return QPoint(qwtPlot()->transform(QwtPlot::xBottom, p.x()),
+                  qwtPlot()->transform(QwtPlot::yLeft, p.y()));
+  };
+
+  const QPointF pointF = paint_to_plot(point);
+
+  QSettings settings;
+  const int prec = settings.value("Preferences::precision", 3).toInt();
+
+  QString text;
+  int min_distance_sqr = 40 * 40;
+  bool updated = false;
+  QPointF marker_point;
+  for (int i = 0; i < curves.size(); i++)
+  {
+    QwtPlotCurve* curve = static_cast<QwtPlotCurve*>(curves[i]);
+    auto maybe_point = curvePointAt(curve, pointF.x());
+    if (maybe_point)
+    {
+      QPoint p(qwtPlot()->transform(QwtPlot::xBottom, maybe_point->x()),
+               qwtPlot()->transform(QwtPlot::yLeft, maybe_point->y()));
+      QPoint diff = p - point;
+      int dist_sqr = diff.x() * diff.x() + diff.y() * diff.y();
+      if (dist_sqr < min_distance_sqr)
+      {
+        updated = true;
+        min_distance_sqr = dist_sqr;
+        _show_point_marker->setValue(maybe_point.value());
+        marker_point = maybe_point.value();
+
+        text = QString("<font color=%1>name: %2<br>time:%3<br>value: %4</font>")
+                   .arg(curve->pen().color().name())
+                   .arg(curve->title().text())
+                   .arg(QString::number(maybe_point->x(), 'f', prec))
+                   .arg(QString::number(maybe_point->y(), 'f', prec));
+      }
+    }
+  }
+  bool disappeared = !_show_point_marker->isVisible() && !updated;
+  _show_point_marker->setVisible(updated);
+  _show_point_text->setVisible(updated);
+
+  if (updated)
+  {
+    const QPoint marker_pos_paint = plot_to_paint(marker_point);
+    const QPointF offset_point = paint_to_plot(marker_pos_paint + QPoint(15, -20));
+
+    QwtText mark_text;
+    mark_text.setText(text);
+    mark_text.setBorderPen(QColor(Qt::transparent));
+    QColor background_color = qwtPlot()->palette().background().color();
+    background_color.setAlpha(220);
+    mark_text.setBackgroundBrush(background_color);
+
+    QFont font = QFontDatabase::systemFont(QFontDatabase::FixedFont);
+    font.setPointSize(9);
+    mark_text.setFont(font);
+    mark_text.setRenderFlags(Qt::AlignLeft);
+    _show_point_text->setLabel(mark_text);
+    _show_point_text->setLabelAlignment(Qt::AlignRight);
+    _show_point_text->setValue(offset_point);
+
+    const double canvas_width = qwtPlot()->canvas()->width();
+    const double text_width = mark_text.textSize().width();
+    const double text_right_edge = marker_pos_paint.x() + 20 + text_width;
+
+    const bool flip_horizontally =
+        (marker_pos_paint.x() > (canvas_width * 0.5)) && text_right_edge > canvas_width;
+
+    if (flip_horizontally)
+    {
+      _show_point_text->setValue(paint_to_plot(marker_pos_paint + QPoint(-15 - text_width, -20)));
+    }
+  }
+
+  if (updated || disappeared)
+  {
+    replot();
+  }
+}
+
 bool PlotWidget::eventFilter(QObject* obj, QEvent* event)
 {
   if (PlotWidgetBase::eventFilter(obj, event))
@@ -1590,15 +1736,16 @@ bool PlotWidget::canvasEventFilter(QEvent* event)
       }
 
       QMouseEvent* mouse_event = static_cast<QMouseEvent*>(event);
+      const QPoint point = mouse_event->pos();
+      QPointF pointF(qwtPlot()->invTransform(QwtPlot::xBottom, point.x()),
+                     qwtPlot()->invTransform(QwtPlot::yLeft, point.y()));
 
       if (mouse_event->buttons() == Qt::LeftButton && mouse_event->modifiers() == Qt::ShiftModifier)
       {
-        const QPoint point = mouse_event->pos();
-        QPointF pointF(qwtPlot()->invTransform(QwtPlot::xBottom, point.x()),
-                       qwtPlot()->invTransform(QwtPlot::yLeft, point.y()));
         emit trackerMoved(pointF);
         return true;
       }
+      showPointValues(point);
     }
     break;
 

@@ -13,7 +13,7 @@
 #
 # See https://github.com/pre-commit/pre-commit
 
-exclude: cmake/CPM.cmake|^3rdparty/|3rdparty|^plotjuggler_base/include/PlotJuggler/contrib/
+exclude: cmake/CPM.cmake|^3rdparty/|3rdparty|^plotjuggler_base/include/PlotJuggler/contrib/|^contrib/|contrib
 repos:
 
   # Standard hooks
@@ -53,7 +53,3 @@ repos:
         args:
             [--toml=./tools/pyproject.toml]
         exclude_types: [svg]
-  - repo: https://github.com/cheshirekow/cmake-format-precommit
-    rev: v0.6.13 # Use the latest stable version
-    hooks:
-      - id: cmake-format
