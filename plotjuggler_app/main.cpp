@@ -32,6 +32,7 @@
 #include "transforms/outlier_removal.h"
 #include "transforms/integral_transform.h"
 #include "transforms/absolute_transform.h"
+#include "transforms/time_since_previous_point.h"
 
 #include "new_release_dialog.h"
 
@@ -74,8 +75,7 @@ void OpenNewReleaseDialog(QNetworkReply* reply)
   QString tag_name = data["tag_name"].toString();
   QSettings settings;
   int online_number = GetVersionNumber(tag_name);
-  QString dont_show =
-      settings.value("NewRelease/dontShowThisVersion", VERSION_STRING).toString();
+  QString dont_show = settings.value("NewRelease/dontShowThisVersion", VERSION_STRING).toString();
   int dontshow_number = GetVersionNumber(dont_show);
   int current_number = GetVersionNumber(VERSION_STRING);
 
@@ -217,6 +217,7 @@ int main(int argc, char* argv[])
   TransformFactory::registerTransform<OutlierRemovalFilter>();
   TransformFactory::registerTransform<IntegralTransform>();
   TransformFactory::registerTransform<AbsoluteTransform>();
+  TransformFactory::registerTransform<TimeSincePreviousPointTranform>();
   TransformFactory::registerTransform<MovingVarianceFilter>();
   TransformFactory::registerTransform<SamplesCountFilter>();
   //---------------------------
@@ -244,8 +245,7 @@ int main(int argc, char* argv[])
 
   QCommandLineOption layout_option(QStringList() << "l"
                                                  << "layout",
-                                   "Load a file containing the layout configuration",
-                                   "file_path");
+                                   "Load a file containing the layout configuration", "file_path");
   parser.addOption(layout_option);
 
   QCommandLineOption publish_option(QStringList() << "p"
@@ -350,8 +350,7 @@ int main(int argc, char* argv[])
   QApplication::setWindowIcon(app_icon);
 
   QNetworkAccessManager manager_new_release;
-  QObject::connect(&manager_new_release, &QNetworkAccessManager::finished,
-                   OpenNewReleaseDialog);
+  QObject::connect(&manager_new_release, &QNetworkAccessManager::finished, OpenNewReleaseDialog);
 
   QNetworkRequest request_new_release;
   request_new_release.setUrl(QUrl("https://api.github.com/repos/facontidavide/"
@@ -373,7 +372,8 @@ int main(int argc, char* argv[])
    * data. Please don't do it.
    */
   if (!parser.isSet(nosplash_option) &&
-      !(parser.isSet(loadfile_option) || parser.isSet(layout_option)))
+      !(parser.isSet(loadfile_option) || parser.isSet(layout_option)) &&
+      !(settings.value("Preferences::no_splash", false).toBool()))
   // if(false) // if you uncomment this line, a kitten will die somewhere in the world.
   {
     QPixmap main_pixmap;
