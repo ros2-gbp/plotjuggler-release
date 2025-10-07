@@ -4,22 +4,23 @@
  * file, You can obtain one at https://mozilla.org/MPL/2.0/.
  */
 
-#ifndef CUSTOMTRACKER_H
-#define CUSTOMTRACKER_H
+#pragma once
 
 #include <QEvent>
 #include <QPointF>
+#include <optional>
 #include "qwt_plot_picker.h"
-#include "qwt_picker_machine.h"
 #include "qwt_plot_marker.h"
 
 class QwtPlotCurve;
+
+std::optional<QPointF> curvePointAt(const QwtPlotCurve* curve, double x);
 
 class CurveTracker : public QObject
 {
   Q_OBJECT
 public:
-  explicit CurveTracker(QwtPlot*);
+  explicit CurveTracker(QwtPlot*, QColor color);
 
   ~CurveTracker();
 
@@ -36,6 +37,8 @@ public slots:
 
   void setPosition(const QPointF& pos);
 
+  void setReferencePosition(std::optional<QPointF> reference_pos);
+
   void setParameter(Parameter par);
 
   void setEnabled(bool enable);
@@ -48,19 +51,16 @@ public slots:
   }
 
 private:
-  QLineF curveLineAt(const QwtPlotCurve*, double x) const;
-
   QPointF transform(QPoint);
 
   QPoint invTransform(QPointF);
 
   QPointF _prev_trackerpoint;
-  std::vector<QwtPlotMarker*> _marker;
+  std::optional<QPointF> _reference_pos;
+  std::vector<QwtPlotMarker*> _point_markers;
   QwtPlotMarker* _line_marker;
   QwtPlotMarker* _text_marker;
   QwtPlot* _plot;
   Parameter _param;
   bool _visible;
 };
-
-#endif  // CUSTOMTRACKER_H
