@@ -3,7 +3,7 @@ cmake_minimum_required(VERSION 3.16)
 project(
   plotjuggler
   LANGUAGES C CXX
-  VERSION 3.10.11)
+  VERSION 3.14.1)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -22,6 +22,7 @@ set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_CURRENT_LIST_DIR}/cmake")
 option(ENABLE_ASAN "Enable Address Sanitizer" OFF)
 option(BASE_AS_SHARED "Build the base library as a shared library" OFF)
 option(BUILDING_WITH_CONAN "Using Conan for dependencies" OFF)
+option(PJ_INSTALLATION "Installation type" "undefined")
 
 if(NOT WIN32 AND ENABLE_ASAN)
   set(CMAKE_CXX_FLAGS
@@ -49,18 +50,21 @@ if(catkin_FOUND)
   find_package(catkin REQUIRED COMPONENTS roslib roscpp)
 
   catkin_package(
-    INCLUDE_DIRS
-    plotjuggler_base/include
-    LIBRARIES
-    plotjuggler_base
-    CATKIN_DEPENDS
-    roslib
-    roscpp)
+    INCLUDE_DIRS plotjuggler_base/include
+    LIBRARIES plotjuggler_base
+    CATKIN_DEPENDS roslib roscpp)
 
   message(STATUS ${catkin_INCLUDE_DIRS})
 
   include_directories(${catkin_INCLUDE_DIRS})
   # COMPILED_WITH_CATKIN will be added to plotjuggler_base target later
+
+  # Set the ROS_DISTRO as PJ_INSTALLATION if not set already
+  if(NOT PJ_INSTALLATION)
+    if(DEFINED ENV{ROS_DISTRO})
+      set(PJ_INSTALLATION "$ENV{ROS_DISTRO}" CACHE STRING "Installation type" FORCE)
+    endif()
+  endif()
 
 elseif(ament_cmake_FOUND)
   set(COMPILING_WITH_AMENT 1)
@@ -68,6 +72,7 @@ elseif(ament_cmake_FOUND)
   find_package(ament_cmake REQUIRED)
   find_package(ament_index_cpp REQUIRED)
   find_package(rclcpp REQUIRED)
+
   include_directories(${ament_index_cpp_INCLUDE_DIRS})
 
   message(STATUS "--------------------------------------------------")
@@ -77,11 +82,22 @@ elseif(ament_cmake_FOUND)
   # COMPILED_WITH_AMENT will be added to plotjuggler_base target later
   set(BASE_AS_SHARED ON)
 
+  # Set the ROS_DISTRO as PJ_INSTALLATION if not set already
+  if(NOT PJ_INSTALLATION)
+    if(DEFINED ENV{ROS_DISTRO})
+      set(PJ_INSTALLATION "$ENV{ROS_DISTRO}" CACHE STRING "Installation type" FORCE)
+    endif()
+  endif()
+
 else()
   message(STATUS "--------------------------------------------------")
   message(STATUS "PlotJuggler is being built WITHOUT any ROS support")
   message(STATUS "--------------------------------------------------")
 endif()
+
+  if(NOT PJ_INSTALLATION)
+      set(PJ_INSTALLATION "undefined" CACHE STRING "Installation type" FORCE)
+  endif()
 
 cmake_policy(SET CMP0020 NEW)
 
@@ -151,7 +167,6 @@ include_directories(
   ${Qt5OpenGL_INCLUDE_DIRS})
 
 # ########################  3rd party dependencies  #########################
-
 include(FetchContent)
 include(cmake/CPM.cmake)
 
@@ -167,8 +182,21 @@ find_or_download_json()
 include(cmake/find_or_download_fmt.cmake)
 find_or_download_fmt()
 
-include(cmake/find_or_download_fastcdr.cmake)
-find_or_download_fastcdr()
+# IMPORTANT: LZ4 and ZSTD must be included after Arrow, since Arrow also includes
+# Findlz4Alt.cmake and FindzstdAlt.cmake and we want to avoid target conflicts
+find_package(Arrow QUIET)
+
+include(${PROJECT_SOURCE_DIR}/cmake/find_or_download_lz4.cmake)
+find_or_download_lz4()
+
+include(${PROJECT_SOURCE_DIR}/cmake/find_or_download_zstd.cmake)
+find_or_download_zstd()
+
+if(NOT COMPILING_WITH_AMENT)
+  include(cmake/download_wasmtime.cmake)
+  download_wasmtime()
+endif()
+
 
 add_subdirectory(3rdparty/qwt/src)
 add_subdirectory(3rdparty/QCodeEditor)
@@ -278,6 +306,7 @@ install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/plotjuggler.svg
 
 # ######################## Main App, Libraries and Plugins
 # ##############################################################################
+# check the architecture (x86)
 
 add_subdirectory(plotjuggler_app)
 add_subdirectory(plotjuggler_plugins)
