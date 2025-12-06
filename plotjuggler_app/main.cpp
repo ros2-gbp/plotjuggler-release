@@ -26,6 +26,7 @@
 #include <QSslSocket>
 
 #include "PlotJuggler/transform_function.h"
+#include "transforms/binary_filter.h"
 #include "transforms/first_derivative.h"
 #include "transforms/samples_count.h"
 #include "transforms/scale_transform.h"
@@ -97,9 +98,10 @@ QPixmap getFunnySplashscreen()
   srand(time(nullptr));
 
   auto getNum = []() {
-    const int last_image_num = 94;
+    const int last_image_num = 103;
     return rand() % (last_image_num);
   };
+
   std::set<int> previous_set;
   std::list<int> previous_nums;
 
@@ -225,6 +227,7 @@ int main(int argc, char* argv[])
   TransformFactory::registerTransform<TimeSincePreviousPointTranform>();
   TransformFactory::registerTransform<MovingVarianceFilter>();
   TransformFactory::registerTransform<SamplesCountFilter>();
+  TransformFactory::registerTransform<BinaryFilter>();
   //---------------------------
 
   QCommandLineParser parser;
