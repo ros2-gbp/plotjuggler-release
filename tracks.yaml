@@ -354,4 +354,5 @@ tracks:
     ros_distro: rolling
     vcs_type: git
     vcs_uri: https://github.com/facontidavide/PlotJuggler.git
-    version: :{auto}
+    version: 3.14.4
+    version_saved: :{auto}
