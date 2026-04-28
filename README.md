@@ -12,7 +12,7 @@
 [![Intermodalics](docs/sponsor_intermodalics.png)](https://www.intermodalics.ai/)
 [![Greenzie](docs/sponsor_ark.png)](https://arkelectron.com/)
 
-# PlotJuggler 3.15
+# PlotJuggler 3.14
 
 PlotJuggler is a tool to visualize time series that is **fast**, **powerful** and  **intuitive**.
 
@@ -78,30 +78,32 @@ Please submit specific issues, Pull Requests and questions on the related Github
 If you want a simple example to learn how to write your own plugins, have a look at
 [PlotJuggler/plotjuggler-sample-plugins](https://github.com/PlotJuggler/plotjuggler-sample-plugins)
 
-# Installation
-
-You can download the latest ready to use binaries from the [Release page](https://github.com/facontidavide/PlotJuggler/releases).
-
-<div align="center">
-
-| 🐧 Linux | 🍎 macOS | 🪟 Windows | 📦 Debian |
-|:--------:|:--------:|:----------:|:---------:|
-| **AppImage** | **Installer** | **Installer** | **Packages** |
-| x86 / arm64 | x86 / arm64 | x64 | bookworm, trixie |
-
-</div>
+## Installation
 
 ## Snap (recommended in Ubuntu, to ROS users too)
 
-The snap contains a version of PlotJuggler that works (with some limitations) with ROS2.
+The snap contains a version of PlotJuggler that can work with either ROS1 or ROS2.
 
 ![Get it from the Snap Store](https://snapcraft.io/static/images/badges/en/snap-store-black.svg)
 
-To install it in Ubuntu, run:
+To install it in Ubuntu 22.04, with ROS2 support, run:
 
 ```
 sudo snap install plotjuggler
 ```
+
+If you are still using ROS1 (Ubuntu 20.04), install instead:
+
+```
+sudo snap install plotjuggler-ros
+```
+
+### Windows Binary installer
+
+This installer does __not__ include ROS plugins.
+
+**Windows Installer**:
+Check the  [Release page](https://github.com/facontidavide/PlotJuggler/releases) to download the latest installer.
 
 ### Debian packages for ROS User
 
@@ -110,7 +112,13 @@ Install the ROS packages with:
 ```
 sudo apt install ros-$ROS_DISTRO-plotjuggler-ros
 ```
-To launch PlotJuggler, use the command:
+To launch PlotJuggler on ROS, use the command:
+
+```
+rosrun plotjuggler plotjuggler
+```
+
+or, if are using ROS2:
 
 ```
 ros2 run plotjuggler plotjuggler

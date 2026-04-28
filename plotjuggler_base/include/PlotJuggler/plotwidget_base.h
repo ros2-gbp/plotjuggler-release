@@ -7,7 +7,6 @@
 #ifndef PLOTWIDGET_BASE_H
 #define PLOTWIDGET_BASE_H
 
-#include <array>
 #include <QWidget>
 #include "plotdata.h"
 #include "timeseries_qwt.h"
@@ -23,26 +22,6 @@ class PlotLegend;
 
 namespace PJ
 {
-
-enum LineWidth
-{
-  POINTS_1_0 = 0,
-  POINTS_1_5 = 1,
-  POINTS_2_0 = 2,
-  POINTS_3_0 = 3
-};
-
-inline double lineWidthValue(LineWidth line_width)
-{
-  constexpr std::array<double, 4> line_widths = { 1.0, 1.5, 2.0, 3.0 };
-  return 1.4 * line_widths[static_cast<size_t>(line_width)];
-}
-
-inline double dotWidthValue(LineWidth line_width)
-{
-  return (lineWidthValue(line_width) * 1.5) + 2.0;
-}
-
 class PlotWidgetBase : public QWidget
 {
   Q_OBJECT
@@ -104,8 +83,6 @@ public:
 
   bool isZoomEnabled() const;
 
-  void setSwapZoomPan(bool swapped);
-
   bool isXYPlot() const;
 
   QRectF currentBoundingRect() const;
@@ -127,13 +104,6 @@ public:
   CurveStyle curveStyle() const;
 
   void updateCurvesStyle();
-
-  void setLineWidth(LineWidth width);
-
-  LineWidth lineWidth() const
-  {
-    return _line_width;
-  }
 
 public slots:
 
@@ -160,7 +130,7 @@ protected:
   class QwtPlotPimpl;
   QwtPlotPimpl* p = nullptr;
 
-  void setStyle(QwtPlotCurve* curve, CurveStyle style);
+  static void setStyle(QwtPlotCurve* curve, CurveStyle style);
 
   QwtPlot* qwtPlot();
   const QwtPlot* qwtPlot() const;
@@ -168,8 +138,6 @@ protected:
   PlotLegend* legend();
   PlotZoomer* zoomer();
   PlotMagnifier* magnifier();
-  PlotPanner* panner1();
-  PlotPanner* panner2();
 
   void updateMaximumZoomArea();
 
@@ -181,8 +149,6 @@ private:
   QRectF _max_zoom_rect;
 
   bool _keep_aspect_ratio;
-
-  LineWidth _line_width = LineWidth::POINTS_1_0;
 };
 
 }  // namespace PJ

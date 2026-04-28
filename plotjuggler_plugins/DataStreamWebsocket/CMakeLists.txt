@@ -1,4 +1,4 @@
-find_package(Qt5 REQUIRED COMPONENTS WebSockets)
+find_package(Qt5 QUIET COMPONENTS WebSockets)
 
 if(NOT Qt5WebSockets_FOUND)
   message(
@@ -16,10 +16,7 @@ else()
   add_library(DataStreamWebSocket SHARED ${SRC} ${UI_SRC})
 
   target_link_libraries(DataStreamWebSocket
-    PRIVATE
-    Qt5::Widgets
-    Qt5::WebSockets
-    plotjuggler_base)
+                        PRIVATE Qt5::Widgets Qt5::WebSockets plotjuggler_base)
 
   target_compile_definitions(DataStreamWebSocket PRIVATE QT_PLUGIN)
 

@@ -66,7 +66,7 @@ bool DataLoadMCAP::xmlLoadState(const QDomElement& parent_element)
 
 const std::vector<const char*>& DataLoadMCAP::compatibleFileExtensions() const
 {
-  static std::vector<const char*> ext = { "mcap" };
+  static std::vector<const char*> ext = { "mcap", "MCAP" };
   return ext;
 }
 

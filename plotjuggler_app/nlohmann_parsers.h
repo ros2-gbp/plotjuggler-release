@@ -128,7 +128,7 @@ public:
                                      timestamp_name);
   }
 
-  QWidget* optionsWidget() override
+  virtual QWidget* optionsWidget()
   {
     loadSettings();
 

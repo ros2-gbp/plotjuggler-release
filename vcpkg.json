@@ -5,9 +5,6 @@
     "protobuf",
     "mosquitto",
     "zeromq",
-    "qt5-base",
-    "qt5-svg",
-    "qt5-websockets",
     {
       "name": "arrow",
       "features": [

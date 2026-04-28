@@ -98,9 +98,6 @@ void ParserFactoryProtobuf::loadSettings()
 
   QSettings settings;
 
-  bool use_timestamp = settings.value("ProtobufParserCreator.useTimestamp", false).toBool();
-  ui->checkBoxTimestamp->setChecked(use_timestamp);
-
   auto include_list = settings.value("ProtobufParserCreator.include_dirs").toStringList();
   for (const auto& include_dir : include_list)
   {
@@ -130,7 +127,6 @@ void ParserFactoryProtobuf::saveSettings()
   }
   settings.setValue("ProtobufParserCreator.include_dirs", include_list);
   settings.setValue("ProtobufParserCreator.protofile", _loaded_file.file_path);
-  settings.setValue("ProtobufParserCreator.useTimestamp", ui->checkBoxTimestamp->isChecked());
 }
 
 ParserFactoryProtobuf::~ParserFactoryProtobuf()
@@ -153,9 +149,7 @@ MessageParserPtr ParserFactoryProtobuf::createParser(const std::string& topic_na
       throw std::runtime_error("ParserFactoryProtobuf: can't find the descriptor");
     }
     auto selected_descriptor = descr_it->second;
-    auto parser = std::make_shared<ProtobufParser>(topic_name, selected_descriptor, data);
-    parser->enableEmbeddedTimestamp(ui->checkBoxTimestamp->isChecked());
-    return parser;
+    return std::make_shared<ProtobufParser>(topic_name, selected_descriptor, data);
   }
   else
   {
@@ -165,9 +159,7 @@ MessageParserPtr ParserFactoryProtobuf::createParser(const std::string& topic_na
       throw std::runtime_error("failed to parse schema data");
     }
 
-    auto parser = std::make_shared<ProtobufParser>(topic_name, type_name, field_set, data);
-    parser->enableEmbeddedTimestamp(ui->checkBoxTimestamp->isChecked());
-    return parser;
+    return std::make_shared<ProtobufParser>(topic_name, type_name, field_set, data);
   }
 }
 

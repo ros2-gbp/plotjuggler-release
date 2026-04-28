@@ -20,7 +20,6 @@
 #include <QInputDialog>
 #include <QMenu>
 #include <QGroupBox>
-#include <QHBoxLayout>
 #include <QMessageBox>
 #include <QMimeData>
 #include <QMouseEvent>
@@ -82,7 +81,6 @@ MainWindow::MainWindow(const QCommandLineParser& commandline_parser, QWidget* pa
   , _labels_status(LabelStatus::RIGHT)
   , _recent_data_files(new QMenu())
   , _recent_layout_files(new QMenu())
-  , _toast_manager(nullptr)
 {
   QLocale::setDefault(QLocale::c());  // set as default
   setAcceptDrops(true);
@@ -138,6 +136,8 @@ MainWindow::MainWindow(const QCommandLineParser& commandline_parser, QWidget* pa
   }
 
   QSettings settings;
+
+  ui->widgetStatusBar->setHidden(true);
 
   if (commandline_parser.isSet("buffer_size"))
   {
@@ -216,9 +216,6 @@ MainWindow::MainWindow(const QCommandLineParser& commandline_parser, QWidget* pa
   ui->mainSplitter->setStretchFactor(1, 6);
 
   connect(ui->mainSplitter, &QSplitter::splitterMoved, this, &MainWindow::on_splitterMoved);
-
-  // Initialize toast notification manager
-  _toast_manager = new ToastManager(ui->centralWidget);
 
   initializeActions();
 
@@ -593,12 +590,11 @@ void MainWindow::initializePlugins()
     ui->layoutPublishers->addWidget(start_checkbox, pub_row, 1);
     start_checkbox->setFocusPolicy(Qt::FocusPolicy::NoFocus);
 
-    StatePublisher* pub_ptr = publisher.get();
     connect(start_checkbox, &QCheckBox::toggled, this,
-            [pub_ptr](bool enable) { pub_ptr->setEnabled(enable); });
+            [=](bool enable) { publisher->setEnabled(enable); });
 
-    connect(pub_ptr, &StatePublisher::closed, start_checkbox,
-            [start_checkbox]() { start_checkbox->setChecked(false); });
+    connect(publisher.get(), &StatePublisher::closed, start_checkbox,
+            [=]() { start_checkbox->setChecked(false); });
 
     if (publisher->availableActions().empty())
     {
@@ -616,9 +612,9 @@ void MainWindow::initializePlugins()
       options_button->setIcon(LoadSvg(":/resources/svg/settings_cog.svg", "light"));
       options_button->setIconSize({ 16, 16 });
 
-      auto optionsMenu = [pub_ptr, options_button, this]() {
+      auto optionsMenu = [=]() {
         PopupMenu* menu = new PopupMenu(options_button, this);
-        for (auto action : pub_ptr->availableActions())
+        for (auto action : publisher->availableActions())
         {
           menu->addAction(action);
         }
@@ -784,12 +780,6 @@ void MainWindow::on_splitterMoved(int size, int index)
 void MainWindow::resizeEvent(QResizeEvent*)
 {
   on_splitterMoved(0, 0);
-
-  // Update toast manager position
-  if (_toast_manager)
-  {
-    _toast_manager->updatePosition();
-  }
 }
 
 void MainWindow::onPlotAdded(PlotWidget* plot)
@@ -831,10 +821,6 @@ void MainWindow::onPlotAdded(PlotWidget* plot)
   plot->onShowPlot(ui->buttonShowpoint->isChecked());
   plot->setDefaultStyle(ui->buttonDots->isChecked() ? PlotWidgetBase::LINES_AND_DOTS :
                                                       PlotWidgetBase::LINES);
-
-  QSettings settings;
-  bool swap_pan_zoom = settings.value("Preferences::swap_pan_zoom", false).toBool();
-  plot->setSwapZoomPan(swap_pan_zoom);
 
   if (ui->buttonReferencePoint->isChecked() && _reference_tracker_time.has_value())
   {
@@ -1646,18 +1632,9 @@ void MainWindow::enableStreamingNotificationsButton(bool enabled)
 
 void MainWindow::setStatusBarMessage(QString message)
 {
-  if (!message.isEmpty())
-  {
-    showToast(message);
-  }
-}
-
-void MainWindow::showToast(const QString& message, const QPixmap& icon)
-{
-  if (_toast_manager)
-  {
-    _toast_manager->showToast(message, icon);
-  }
+  ui->statusLabel->setText(message);
+  ui->widgetStatusBar->setHidden(message.isEmpty());
+  QTimer::singleShot(7000, this, [this]() { ui->widgetStatusBar->setHidden(true); });
 }
 
 void MainWindow::loadStyleSheet(QString file_path)
@@ -1925,18 +1902,12 @@ bool MainWindow::loadLayoutFromFile(QString filename)
     return false;
   }
 
-  // Read file content with explicit UTF-8 encoding to handle Unicode characters
-  QTextStream stream(&file);
-  stream.setCodec("UTF-8");
-  QString fileContent = stream.readAll();
-  file.close();
-
   QString errorStr;
   int errorLine, errorColumn;
 
   QDomDocument domDocument;
 
-  if (!domDocument.setContent(fileContent, true, &errorStr, &errorLine, &errorColumn))
+  if (!domDocument.setContent(&file, true, &errorStr, &errorLine, &errorColumn))
   {
     QMessageBox::information(window(), tr("XML Layout"),
                              tr("Parse error at line %1:\n%2").arg(errorLine).arg(errorStr));
@@ -2879,20 +2850,22 @@ void MainWindow::on_buttonLoadDatafile_clicked()
 
   QSettings settings;
 
-  QString single_line_extensions;
-  QStringList extensions;
-  for (auto& [loader_name, loader] : dataLoaders())
+  QString file_extension_filter;
+
+  std::set<QString> extensions;
+  for (auto& it : dataLoaders())
   {
-    QString filter_by_loader = QString("%1 (").arg(loader_name);
+    DataLoaderPtr loader = it.second;
     for (QString extension : loader->compatibleFileExtensions())
     {
-      filter_by_loader.append(QString("*.%1 ").arg(extension.toLower()));
-      single_line_extensions.append(QString("*.%1 ").arg(extension.toLower()));
+      extensions.insert(extension.toLower());
     }
-    extensions.push_back(filter_by_loader.trimmed() + ")");
   }
-  extensions.push_front(QString("All Supported Files (%1)").arg(single_line_extensions.trimmed()));
-  extensions.push_back(QString("All Files (*)"));
+
+  for (const auto& it : extensions)
+  {
+    file_extension_filter.append(QString(" *.") + it);
+  }
 
   QString directory_path =
       settings.value("MainWindow.lastDatafileDirectory", QDir::currentPath()).toString();
@@ -2900,9 +2873,8 @@ void MainWindow::on_buttonLoadDatafile_clicked()
   QFileDialog loadDialog(this);
   loadDialog.setFileMode(QFileDialog::ExistingFiles);
   loadDialog.setViewMode(QFileDialog::Detail);
-  loadDialog.setNameFilter(extensions.join(";;"));
+  loadDialog.setNameFilter(file_extension_filter);
   loadDialog.setDirectory(directory_path);
-  loadDialog.setOption(QFileDialog::DontUseNativeDialog, true);
 
   QStringList fileNames;
   if (loadDialog.exec())
@@ -3083,7 +3055,6 @@ void MainWindow::on_buttonSaveLayout_clicked()
   if (file.open(QIODevice::WriteOnly))
   {
     QTextStream stream(&file);
-    stream.setCodec("UTF-8");
     stream << doc.toString() << "\n";
   }
 }
@@ -3163,7 +3134,6 @@ void MainWindow::on_actionPreferences_triggered()
 {
   QSettings settings;
   QString prev_style = settings.value("Preferences::theme", "light").toString();
-  bool prev_swap_pan_zoom = settings.value("Preferences::swap_pan_zoom", false).toBool();
 
   PreferencesDialog dialog;
   dialog.exec();
@@ -3173,14 +3143,6 @@ void MainWindow::on_actionPreferences_triggered()
   if (!theme.isEmpty() && theme != prev_style)
   {
     loadStyleSheet(tr(":/resources/stylesheet_%1.qss").arg(theme));
-  }
-
-  // Apply swap pan/zoom preference to all existing plots
-  bool swap_pan_zoom = settings.value("Preferences::swap_pan_zoom", false).toBool();
-  if (swap_pan_zoom != prev_swap_pan_zoom)
-  {
-    auto visitor = [swap_pan_zoom](PlotWidget* plot) { plot->setSwapZoomPan(swap_pan_zoom); };
-    forEachWidget(visitor);
   }
 }
 
@@ -3417,7 +3379,7 @@ void MainWindow::on_buttonReloadData_clicked()
 
 void MainWindow::on_buttonCloseStatus_clicked()
 {
-  // Status bar removed - using toast notifications instead
+  ui->widgetStatusBar->hide();
 }
 
 void MainWindow::on_buttonReferencePoint_toggled(bool checked)

@@ -1,6 +1,7 @@
 #include "ulog_parser.h"
 #include "ulog_messages.h"
 
+#include <string.h>
 #include <iosfwd>
 #include <sstream>
 #include <iomanip>
@@ -162,7 +163,7 @@ char* ULogParser::parseSimpleDataMessage(Timeseries& timeseries, const Format* f
   for (const auto& field : format->fields)
   {
     // skip _padding messages which are one byte in size
-    if (startsWith(StringView(field.field_name), "_padding"))
+    if (StringView(field.field_name).starts_with("_padding"))
     {
       message += field.array_size;
       continue;
@@ -521,62 +522,62 @@ bool ULogParser::readFormat(DataStream& datastream, uint16_t msg_size)
     auto field_name = field_pair.at(1);
 
     Field field;
-    if (startsWith(field_type, "int8_t"))
+    if (field_type.starts_with("int8_t"))
     {
       field.type = INT8;
       field_type.remove_prefix(6);
     }
-    else if (startsWith(field_type, "int16_t"))
+    else if (field_type.starts_with("int16_t"))
     {
       field.type = INT16;
       field_type.remove_prefix(7);
     }
-    else if (startsWith(field_type, "int32_t"))
+    else if (field_type.starts_with("int32_t"))
     {
       field.type = INT32;
       field_type.remove_prefix(7);
     }
-    else if (startsWith(field_type, "int64_t"))
+    else if (field_type.starts_with("int64_t"))
     {
       field.type = INT64;
       field_type.remove_prefix(7);
     }
-    else if (startsWith(field_type, "uint8_t"))
+    else if (field_type.starts_with("uint8_t"))
     {
       field.type = UINT8;
       field_type.remove_prefix(7);
     }
-    else if (startsWith(field_type, "uint16_t"))
+    else if (field_type.starts_with("uint16_t"))
     {
       field.type = UINT16;
       field_type.remove_prefix(8);
     }
-    else if (startsWith(field_type, "uint32_t"))
+    else if (field_type.starts_with("uint32_t"))
     {
       field.type = UINT32;
       field_type.remove_prefix(8);
     }
-    else if (startsWith(field_type, "uint64_t"))
+    else if (field_type.starts_with("uint64_t"))
     {
       field.type = UINT64;
       field_type.remove_prefix(8);
     }
-    else if (startsWith(field_type, "double"))
+    else if (field_type.starts_with("double"))
     {
       field.type = DOUBLE;
       field_type.remove_prefix(6);
     }
-    else if (startsWith(field_type, "float"))
+    else if (field_type.starts_with("float"))
     {
       field.type = FLOAT;
       field_type.remove_prefix(5);
     }
-    else if (startsWith(field_type, "bool"))
+    else if (field_type.starts_with("bool"))
     {
       field.type = BOOL;
       field_type.remove_prefix(4);
     }
-    else if (startsWith(field_type, "char"))
+    else if (field_type.starts_with("char"))
     {
       field.type = CHAR;
       field_type.remove_prefix(4);
@@ -585,25 +586,25 @@ bool ULogParser::readFormat(DataStream& datastream, uint16_t msg_size)
     {
       field.type = OTHER;
 
-      if (endsWith(field_type, "]"))
+      if (field_type.ends_with("]"))
       {
         StringView helper = field_type;
-        while (!endsWith(helper, "["))
+        while (!helper.ends_with("["))
         {
           helper.remove_suffix(1);
         }
 
         helper.remove_suffix(1);
-        field.other_type_ID = std::string(helper);
+        field.other_type_ID = helper.to_string();
 
-        while (!startsWith(field_type, "["))
+        while (!field_type.starts_with("["))
         {
           field_type.remove_prefix(1);
         }
       }
       else
       {
-        field.other_type_ID = std::string(field_type);
+        field.other_type_ID = field_type.to_string();
       }
     }
 
@@ -628,7 +629,7 @@ bool ULogParser::readFormat(DataStream& datastream, uint16_t msg_size)
     }
     else
     {
-      field.field_name = std::string(field_name);
+      field.field_name = field_name.to_string();
       format.fields.push_back(field);
     }
   }
@@ -665,10 +666,10 @@ bool ULogParser::readInfo(DataStream& datastream, uint16_t msg_size)
 
   auto key_parts = splitString(raw_key, ' ');
 
-  std::string key = std::string(key_parts[1]);
+  std::string key = key_parts[1].to_string();
   std::string value;
 
-  if (startsWith(key_parts[0], "char["))
+  if (key_parts[0].starts_with("char["))
   {
     value = raw_value;
   }
@@ -700,7 +701,7 @@ bool ULogParser::readInfo(DataStream& datastream, uint16_t msg_size)
   else if (key_parts[0] == StringView("uint32_t"))
   {
     uint32_t val = *reinterpret_cast<const uint32_t*>(raw_value.data());
-    if (startsWith(key_parts[1], "ver_") && endsWith(key_parts[1], "_release"))
+    if (key_parts[1].starts_with("ver_") && key_parts[1].ends_with("_release"))
     {
       value = int_to_hex(val);
     }
@@ -766,7 +767,7 @@ ULogParser::Timeseries ULogParser::createTimeseries(const ULogParser::Format* fo
     for (const auto& field : format.fields)
     {
       // skip padding messages
-      if (startsWith(StringView(field.field_name), "_padding"))
+      if (StringView(field.field_name).starts_with("_padding"))
       {
         continue;
       }
