@@ -2,11 +2,14 @@
 #include "ui_datastream_zmq.h"
 
 #include "PlotJuggler/messageparser_base.h"
+#include "PlotJuggler/dialog_utils.h"
 #include <QDebug>
 #include <QDialog>
 #include <QIntValidator>
+#include <QMetaObject>
 #include <QMessageBox>
 #include <QSettings>
+#include <QThread>
 #include <chrono>
 #include <iostream>
 
@@ -72,6 +75,10 @@ bool DataStreamZMQ::start(QStringList*)
   QSettings settings;
   QString address = settings.value("ZMQ_Subscriber::address", "localhost").toString();
   QString protocol = settings.value("ZMQ_Subscriber::protocol", "JSON").toString();
+  if (parserFactories()->find(protocol) == parserFactories()->end())
+  {
+    protocol = parserFactories()->begin()->first;
+  }
   QString topics = settings.value("ZMQ_Subscriber::topics", "").toString();
   _is_connect = settings.value("ZMQ_Subscriber::is_connect", true).toBool();
 
@@ -105,8 +112,19 @@ bool DataStreamZMQ::start(QStringList*)
   dialog->ui->lineEditPort->setText(QString::number(port));
   dialog->ui->lineEditTopics->setText(topics);
 
+  // IPC endpoints are filesystem paths; no port applies. Disable the port
+  // field when ipc:// is selected so the user doesn't type a value that
+  // would be silently ignored.
+  auto updatePortEnabled = [dialog]() {
+    const bool use_port = dialog->ui->comboBox->currentText() != "ipc://";
+    dialog->ui->lineEditPort->setEnabled(use_port);
+  };
+  connect(dialog->ui->comboBox, qOverload<const QString&>(&QComboBox::currentIndexChanged), dialog,
+          [updatePortEnabled](const QString&) { updatePortEnabled(); });
+  updatePortEnabled();
+
   connect(dialog->ui->comboBoxProtocol, qOverload<const QString&>(&QComboBox::currentIndexChanged),
-          this, [&](const QString& selected_protocol) {
+          this, [this, dialog](const QString& selected_protocol) {
             if (_parser_creator)
             {
               if (auto prev_widget = _parser_creator->optionsWidget())
@@ -116,10 +134,7 @@ bool DataStreamZMQ::start(QStringList*)
             }
             _parser_creator = parserFactories()->at(selected_protocol);
 
-            if (auto widget = _parser_creator->optionsWidget())
-            {
-              widget->setVisible(true);
-            }
+            showOptionsWidget(dialog, dialog->ui->boxOptions, _parser_creator->optionsWidget());
           });
 
   dialog->ui->comboBoxProtocol->setCurrentText(protocol);
@@ -146,7 +161,17 @@ bool DataStreamZMQ::start(QStringList*)
   settings.setValue("ZMQ_Subscriber::topics", topics);
   settings.setValue("ZMQ_Subscriber::is_connect", _is_connect);
 
-  QString addr = dialog->ui->comboBox->currentText() + address + ":" + QString::number(port);
+  const QString endpoint_protocol = dialog->ui->comboBox->currentText();
+  QString addr;
+  if (endpoint_protocol == "ipc://")
+  {
+    // IPC endpoints are filesystem paths; no port suffix.
+    addr = endpoint_protocol + address;
+  }
+  else
+  {
+    addr = endpoint_protocol + address + ":" + QString::number(port);
+  }
   _socket_address = addr.toStdString();
   if (_is_connect)
   {
@@ -297,19 +322,49 @@ bool DataStreamZMQ::parseMessage(const PJ::MessageRef& msg, double& timestamp)
   }
 }
 
+PJ::MessageParserPtr DataStreamZMQ::ensureTopicParser(const std::string& topic)
+{
+  {
+    std::lock_guard<std::mutex> lock(mutex());
+    auto it = _parsers.find(topic);
+    if (it != _parsers.end())
+    {
+      return it->second;
+    }
+  }
+
+  PJ::MessageParserPtr parser;
+
+  auto create_parser = [this, &parser, topic]() {
+    std::lock_guard<std::mutex> lock(mutex());
+    auto it = _parsers.find(topic);
+    if (it == _parsers.end())
+    {
+      it = _parsers.emplace(topic, _parser_creator->createParser(topic, {}, {}, dataMap())).first;
+    }
+    parser = it->second;
+  };
+
+  if (QThread::currentThread() == thread())
+  {
+    create_parser();
+  }
+  else
+  {
+    QMetaObject::invokeMethod(this, create_parser, Qt::BlockingQueuedConnection);
+  }
+
+  return parser;
+}
+
 bool DataStreamZMQ::parseMessage(const std::string& topic, const PJ::MessageRef& msg,
                                  double& timestamp)
 {
   try
   {
+    auto parser = ensureTopicParser(topic);
     std::lock_guard<std::mutex> lock(mutex());
-    // If the topic is not in the map keys, create a new parser
-    if (_parsers.find(topic) == _parsers.end())
-    {
-      _parsers[topic] = _parser_creator->createParser(topic, {}, {}, dataMap());
-    }
-
-    _parsers[topic]->parseMessage(msg, timestamp);
+    parser->parseMessage(msg, timestamp);
     return true;
   }
   catch (...)
