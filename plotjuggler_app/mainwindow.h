@@ -32,8 +32,11 @@
 #include "transforms/custom_function.h"
 #include "transforms/function_editor.h"
 #include "plugin_manager.h"
+#include "toast_manager.h"
 
 #include "ui_mainwindow.h"
+
+class QVBoxLayout;
 
 class MainWindow : public QMainWindow
 {
@@ -44,8 +47,8 @@ public:
 
   ~MainWindow();
 
-  bool loadLayoutFromFile(QString filename);
-  bool loadDataFromFiles(QStringList filenames);
+  bool loadLayoutFromFile(QString filename, bool load_datafiles = true);
+  bool loadDataFromFiles(QStringList filenames, bool auto_prefix = false);
   std::unordered_set<std::string> loadDataFromFile(const FileLoadInfo& info, bool merge_files);
 
   void stopStreamingPlugin();
@@ -53,6 +56,11 @@ public:
   void enableStreamingNotificationsButton(bool enabled);
 
   void setStatusBarMessage(QString message);
+
+  /// Show a toast notification in the bottom-right corner
+  /// @param message The text/HTML to display (supports rich text with clickable links)
+  /// @param icon Optional 56x56 icon to show on the left
+  void showToast(const QString& message, const QPixmap& icon = QPixmap());
 
 public slots:
 
@@ -150,6 +158,7 @@ private:
   MonitoredValue _time_offset;
 
   QTimer* _replot_timer;
+  int _curvelist_resync_counter = 0;
   QTimer* _publish_timer;
   PJ::DelayedCallback _tracker_delay;
 
@@ -173,6 +182,9 @@ private:
   QMenu* _recent_layout_files;
 
   QString _skin_path;
+
+  // Toast notification manager
+  ToastManager* _toast_manager;
 
   void initializeActions();
   void initializePlugins();
