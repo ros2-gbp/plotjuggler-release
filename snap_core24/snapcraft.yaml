@@ -12,8 +12,8 @@ description: |
 
 version: git
 
-issues: https://github.com/facontidavide/plotjuggler/issues
-source-code: https://github.com/facontidavide/plotjuggler
+issues: https://github.com/PlotJuggler/plotjuggler/issues
+source-code: https://github.com/PlotJuggler/plotjuggler
 license: MPL-2.0
 
 confinement: strict
@@ -36,6 +36,7 @@ apps:
       - opengl
       - wayland
       - x11
+      - removable-media
     extensions: [ros2-jazzy]
 
 parts:
@@ -46,6 +47,7 @@ parts:
       - -DBASE_AS_SHARED=ON
       - -DCMAKE_BUILD_TYPE=Release
       - -DPJ_INSTALLATION="snap-jazzy"
+      - -DPJ_PLUGINS_DIRECTORY="bin"
     build-packages:
       - libpulse0
       - libdw-dev
@@ -57,6 +59,7 @@ parts:
       - libqt5svg5-dev
       - libqt5opengl5-dev
       - libqt5websockets5-dev
+      - libqt5serialport5-dev
       - libqt5x11extras5-dev
       - libzmq3-dev
       - libzstd-dev
@@ -74,6 +77,7 @@ parts:
       - libqt5svg5-dev
       - libqt5opengl5-dev
       - libqt5websockets5-dev
+      - libqt5serialport5-dev
       - libqt5x11extras5-dev
     override-pull: |
         craftctl default
@@ -112,6 +116,7 @@ parts:
       - libqt5svg5-dev
       - libqt5opengl5-dev
       - libqt5websockets5-dev
+      - libqt5serialport5-dev
       - libqt5x11extras5-dev
       # ROS 2 plugin need to source messages to plot them
       # No custom message is going to be support for now

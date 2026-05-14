@@ -5,6 +5,7 @@
  */
 
 #include <functional>
+#include <queue>
 #include <stdio.h>
 
 #include <QApplication>
@@ -13,6 +14,7 @@
 #include <QCommandLineParser>
 #include <QDebug>
 #include <QDesktopServices>
+#include <QDirIterator>
 #include <QDomDocument>
 #include <QDoubleSpinBox>
 #include <QElapsedTimer>
@@ -20,12 +22,14 @@
 #include <QInputDialog>
 #include <QMenu>
 #include <QGroupBox>
+#include <QHBoxLayout>
 #include <QMessageBox>
 #include <QMimeData>
 #include <QMouseEvent>
 #include <QPluginLoader>
 #include <QPushButton>
 #include <QKeySequence>
+#include <QLabel>
 #include <QScrollBar>
 #include <QSettings>
 #include <QStringListModel>
@@ -43,6 +47,9 @@
 #include "PlotJuggler/plotdata.h"
 #include "transforms/function_editor.h"
 #include "transforms/lua_custom_function.h"
+#ifdef PJ_HAS_PYTHON
+#include "transforms/python_custom_function.h"
+#endif
 #include "utils.h"
 #include "stylesheet.h"
 #include "dummy_data.h"
@@ -65,6 +72,91 @@
 #include <ament_index_cpp/get_package_share_directory.hpp>
 #endif
 
+// Serialize a QDomDocument to XML with attributes in sorted order.
+// Qt's QDomDocument::toString() uses a hash map for attributes, producing
+// non-deterministic ordering that causes noisy diffs in version control.
+static void WriteSortedXml(QTextStream& out, const QDomNode& node, int indent = 0)
+{
+  const QString pad(indent, ' ');
+
+  // A QDomDocument is not an element; walk its children (xml PI + root).
+  if (node.isDocument())
+  {
+    QDomNodeList children = node.childNodes();
+    for (int i = 0; i < children.length(); ++i)
+    {
+      WriteSortedXml(out, children.at(i), indent);
+    }
+    return;
+  }
+
+  if (node.isProcessingInstruction())
+  {
+    auto pi = node.toProcessingInstruction();
+    out << pad << "<?" << pi.target() << " " << pi.data() << "?>\n";
+    return;
+  }
+  if (node.isComment())
+  {
+    out << pad << "<!--" << node.toComment().data() << "-->\n";
+    return;
+  }
+  if (node.isText())
+  {
+    out << node.toText().data().toHtmlEscaped();
+    return;
+  }
+  if (!node.isElement())
+  {
+    return;
+  }
+
+  auto elem = node.toElement();
+  out << pad << "<" << elem.tagName();
+
+  // Collect and sort attributes alphabetically
+  QDomNamedNodeMap attrs = elem.attributes();
+  QStringList attr_names;
+  attr_names.reserve(attrs.length());
+  for (int i = 0; i < attrs.length(); ++i)
+  {
+    attr_names << attrs.item(i).nodeName();
+  }
+  attr_names.sort();
+  for (const auto& name : attr_names)
+  {
+    out << " " << name << "=\"" << elem.attribute(name).toHtmlEscaped() << "\"";
+  }
+
+  QDomNodeList children = elem.childNodes();
+  if (children.isEmpty())
+  {
+    out << "/>\n";
+    return;
+  }
+
+  // If the only child is a text node, write inline
+  if (children.length() == 1 && children.at(0).isText())
+  {
+    out << ">";
+    WriteSortedXml(out, children.at(0), 0);
+    out << "</" << elem.tagName() << ">\n";
+    return;
+  }
+
+  out << ">\n";
+  for (int i = 0; i < children.length(); ++i)
+  {
+    WriteSortedXml(out, children.at(i), indent + 1);
+  }
+  out << pad << "</" << elem.tagName() << ">\n";
+}
+
+bool isMosaicoToolbox(const QString& plugin_name)
+{
+  return plugin_name.contains(QStringLiteral("mosaico"), Qt::CaseInsensitive);
+}
+
 MainWindow::MainWindow(const QCommandLineParser& commandline_parser, QWidget* parent)
   : QMainWindow(parent)
   , ui(new Ui::MainWindow)
@@ -81,6 +173,7 @@ MainWindow::MainWindow(const QCommandLineParser& commandline_parser, QWidget* pa
   , _labels_status(LabelStatus::RIGHT)
   , _recent_data_files(new QMenu())
   , _recent_layout_files(new QMenu())
+  , _toast_manager(nullptr)
 {
   QLocale::setDefault(QLocale::c());  // set as default
   setAcceptDrops(true);
@@ -137,12 +230,11 @@ MainWindow::MainWindow(const QCommandLineParser& commandline_parser, QWidget* pa
 
   QSettings settings;
 
-  ui->widgetStatusBar->setHidden(true);
-
   if (commandline_parser.isSet("buffer_size"))
   {
     int buffer_size = std::max(10, commandline_parser.value("buffer_size").toInt());
     ui->streamingSpinBox->setMaximum(buffer_size);
+    ui->streamingSpinBox->setValue(buffer_size);
   }
 
   _animated_streaming_movie = new QMovie(":/resources/animated_radio.gif");
@@ -217,6 +309,9 @@ MainWindow::MainWindow(const QCommandLineParser& commandline_parser, QWidget* pa
 
   connect(ui->mainSplitter, &QSplitter::splitterMoved, this, &MainWindow::on_splitterMoved);
 
+  // Initialize toast notification manager
+  _toast_manager = new ToastManager(ui->centralWidget);
+
   initializeActions();
 
   LoadColorMapFromSettings();
@@ -257,11 +352,36 @@ MainWindow::MainWindow(const QCommandLineParser& commandline_parser, QWidget* pa
   if (commandline_parser.isSet("datafile"))
   {
     QStringList datafiles = commandline_parser.values("datafile");
-    file_loaded = loadDataFromFiles(datafiles);
+
+    // Expand directories into their file contents (recursive).
+    QStringList expanded;
+    for (const auto& path : datafiles)
+    {
+      QFileInfo finfo(path);
+      if (finfo.isDir())
+      {
+        QDirIterator it(path, QDirIterator::Subdirectories);
+        while (it.hasNext())
+        {
+          it.next();
+          if (it.fileInfo().isFile())
+          {
+            expanded.push_back(it.filePath());
+          }
+        }
+      }
+      else
+      {
+        expanded.push_back(path);
+      }
+    }
+
+    const bool auto_prefix = commandline_parser.isSet("auto-prefix");
+    file_loaded = loadDataFromFiles(expanded, auto_prefix);
   }
   if (commandline_parser.isSet("layout"))
   {
-    loadLayoutFromFile(commandline_parser.value("layout"));
+    loadLayoutFromFile(commandline_parser.value("layout"), !file_loaded);
   }
 
   restoreGeometry(settings.value("MainWindow.geometry").toByteArray());
@@ -378,7 +498,9 @@ MainWindow::~MainWindow()
 void MainWindow::onUndoableChange()
 {
   if (_disable_undo_logging)
+  {
     return;
+  }
 
   int elapsed_ms = _undo_timer.restart();
 
@@ -386,11 +508,15 @@ void MainWindow::onUndoableChange()
   if (elapsed_ms < 100)
   {
     if (_undo_states.empty() == false)
+    {
       _undo_states.pop_back();
+    }
   }
 
   while (_undo_states.size() >= 100)
+  {
     _undo_states.pop_front();
+  }
   _undo_states.push_back(xmlSaveState());
   _redo_states.clear();
   // qDebug() << "undo " << _undo_states.size();
@@ -398,12 +524,19 @@ void MainWindow::onUndoableChange()
 
 void MainWindow::onRedoInvoked()
 {
+  if (QApplication::activePopupWidget() || QApplication::activeModalWidget())
+  {
+    return;
+  }
+
   _disable_undo_logging = true;
   if (_redo_states.size() > 0)
   {
     QDomDocument state_document = _redo_states.back();
     while (_undo_states.size() >= 100)
+    {
       _undo_states.pop_front();
+    }
     _undo_states.push_back(state_document);
     _redo_states.pop_back();
 
@@ -415,12 +548,19 @@ void MainWindow::onRedoInvoked()
 
 void MainWindow::onUndoInvoked()
 {
+  if (QApplication::activePopupWidget() || QApplication::activeModalWidget())
+  {
+    return;
+  }
+
   _disable_undo_logging = true;
   if (_undo_states.size() > 1)
   {
     QDomDocument state_document = _undo_states.back();
     while (_redo_states.size() >= 100)
+    {
       _redo_states.pop_front();
+    }
     _redo_states.push_back(state_document);
     _undo_states.pop_back();
     state_document = _undo_states.back();
@@ -590,11 +730,12 @@ void MainWindow::initializePlugins()
     ui->layoutPublishers->addWidget(start_checkbox, pub_row, 1);
     start_checkbox->setFocusPolicy(Qt::FocusPolicy::NoFocus);
 
+    StatePublisher* pub_ptr = publisher.get();
     connect(start_checkbox, &QCheckBox::toggled, this,
-            [=](bool enable) { publisher->setEnabled(enable); });
+            [pub_ptr](bool enable) { pub_ptr->setEnabled(enable); });
 
-    connect(publisher.get(), &StatePublisher::closed, start_checkbox,
-            [=]() { start_checkbox->setChecked(false); });
+    connect(pub_ptr, &StatePublisher::closed, start_checkbox,
+            [start_checkbox]() { start_checkbox->setChecked(false); });
 
     if (publisher->availableActions().empty())
     {
@@ -612,9 +753,9 @@ void MainWindow::initializePlugins()
       options_button->setIcon(LoadSvg(":/resources/svg/settings_cog.svg", "light"));
       options_button->setIconSize({ 16, 16 });
 
-      auto optionsMenu = [=]() {
+      auto optionsMenu = [pub_ptr, options_button, this]() {
         PopupMenu* menu = new PopupMenu(options_button, this);
-        for (auto action : publisher->availableActions())
+        for (auto action : pub_ptr->availableActions())
         {
           menu->addAction(action);
         }
@@ -664,7 +805,16 @@ void MainWindow::initializePlugins()
     toolbox->init(_mapped_plot_data, _transform_functions);
     toolbox->setParserFactories(&_parser_factories);
 
-    auto action = ui->menuTools->addAction(toolbox->name());
+    QAction* action = nullptr;
+    const QString toolbox_name = QString::fromUtf8(toolbox->name());
+    if (isMosaicoToolbox(toolbox_name))
+    {
+      action = ui->menuCloudData->addAction(toolbox_name);
+    }
+    else
+    {
+      action = ui->menuTools->addAction(toolbox_name);
+    }
 
     int new_index = ui->widgetStack->count();
     auto provided = toolbox->providedWidget();
@@ -675,10 +825,10 @@ void MainWindow::initializePlugins()
     connect(action, &QAction::triggered, toolbox_ptr, &ToolboxPlugin::onShowWidget);
 
     connect(action, &QAction::triggered, this,
-            [=]() { ui->widgetStack->setCurrentIndex(new_index); });
+            [this, new_index]() { ui->widgetStack->setCurrentIndex(new_index); });
 
     connect(toolbox_ptr, &ToolboxPlugin::closed, this,
-            [=]() { ui->widgetStack->setCurrentIndex(0); });
+            [this]() { ui->widgetStack->setCurrentIndex(0); });
 
     connect(toolbox_ptr, &ToolboxPlugin::importData, this,
             [this](PlotDataMapRef& new_data, bool remove_old) {
@@ -780,6 +930,12 @@ void MainWindow::on_splitterMoved(int size, int index)
 void MainWindow::resizeEvent(QResizeEvent*)
 {
   on_splitterMoved(0, 0);
+
+  // Update toast manager position
+  if (_toast_manager)
+  {
+    _toast_manager->updatePosition();
+  }
 }
 
 void MainWindow::onPlotAdded(PlotWidget* plot)
@@ -802,9 +958,11 @@ void MainWindow::onPlotAdded(PlotWidget* plot)
   connect(plot, &PlotWidget::curvesDropped, _curvelist_widget, &CurveListPanel::clearSelections);
 
   connect(plot, &PlotWidget::legendSizeChanged, this, [=](int point_size) {
-    auto visitor = [=](PlotWidget* p) {
+    auto visitor = [this, plot, point_size](PlotWidget* p) {
       if (plot != p)
+      {
         p->setLegendSize(point_size);
+      }
     };
     this->forEachWidget(visitor);
   });
@@ -821,6 +979,21 @@ void MainWindow::onPlotAdded(PlotWidget* plot)
   plot->onShowPlot(ui->buttonShowpoint->isChecked());
   plot->setDefaultStyle(ui->buttonDots->isChecked() ? PlotWidgetBase::LINES_AND_DOTS :
                                                       PlotWidgetBase::LINES);
+
+  // Inherit legend settings from current state
+  plot->activateLegend(_labels_status != LabelStatus::HIDDEN);
+  if (_labels_status == LabelStatus::LEFT)
+  {
+    plot->setLegendAlignment(Qt::AlignLeft);
+  }
+  else if (_labels_status == LabelStatus::RIGHT)
+  {
+    plot->setLegendAlignment(Qt::AlignRight);
+  }
+
+  QSettings settings;
+  bool swap_pan_zoom = settings.value("Preferences::swap_pan_zoom", false).toBool();
+  plot->setSwapZoomPan(swap_pan_zoom);
 
   if (ui->buttonReferencePoint->isChecked() && _reference_tracker_time.has_value())
   {
@@ -883,6 +1056,10 @@ QDomDocument MainWindow::xmlSaveState() const
   QDomElement relative_time = doc.createElement("use_relative_time_offset");
   relative_time.setAttribute("enabled", ui->buttonRemoveTimeOffset->isChecked());
   root.appendChild(relative_time);
+
+  QDomElement streaming_buffer = doc.createElement("streaming_buffer_size");
+  streaming_buffer.setAttribute("value", ui->streamingSpinBox->value());
+  root.appendChild(streaming_buffer);
 
   return doc;
 }
@@ -1015,6 +1192,13 @@ bool MainWindow::xmlLoadState(QDomDocument state_document)
   {
     bool remove_offset = (relative_time.attribute("enabled") == QString("1"));
     ui->buttonRemoveTimeOffset->setChecked(remove_offset);
+  }
+
+  QDomElement streaming_buffer = root.firstChildElement("streaming_buffer_size");
+  if (!streaming_buffer.isNull())
+  {
+    int buffer_val = streaming_buffer.attribute("value", "5").toInt();
+    ui->streamingSpinBox->setValue(buffer_val);
   }
   return true;
 }
@@ -1212,14 +1396,23 @@ bool MainWindow::isStreamingActive() const
   return !ui->buttonStreamingPause->isChecked() && _active_streamer_plugin;
 }
 
-bool MainWindow::loadDataFromFiles(QStringList filenames)
+bool MainWindow::loadDataFromFiles(QStringList filenames, bool auto_prefix)
 {
   filenames.sort();
   std::map<QString, QString> filename_prefix;
 
-  const bool add_prefix = ui->checkBoxAddPrefix->isChecked();
-  const bool merge_data = ui->checkBoxMergeData->isChecked();
-  if (add_prefix)
+  bool has_prefix = false;
+
+  if (auto_prefix)
+  {
+    // CLI --auto-prefix: use each file's basename, skip the dialog.
+    for (const auto& file : filenames)
+    {
+      filename_prefix[file] = QFileInfo(file).baseName();
+    }
+    has_prefix = true;
+  }
+  else if (ui->checkBoxAddPrefix->isChecked())
   {
     DialogMultifilePrefix dialog(filenames, this);
     int ret = dialog.exec();
@@ -1228,7 +1421,10 @@ bool MainWindow::loadDataFromFiles(QStringList filenames)
       return false;
     }
     filename_prefix = dialog.getPrefixes();
+    has_prefix = true;
   }
+
+  const bool merge_data = ui->checkBoxMergeData->isChecked();
 
   std::unordered_set<std::string> previous_names = _mapped_plot_data.getAllNames();
 
@@ -1260,7 +1456,7 @@ bool MainWindow::loadDataFromFiles(QStringList filenames)
   {
     data_replaced_entirely = true;
   }
-  else if (!add_prefix)
+  else if (!has_prefix)
   {
     QMessageBox::StandardButton reply;
     reply = QMessageBox::question(
@@ -1632,9 +1828,18 @@ void MainWindow::enableStreamingNotificationsButton(bool enabled)
 
 void MainWindow::setStatusBarMessage(QString message)
 {
-  ui->statusLabel->setText(message);
-  ui->widgetStatusBar->setHidden(message.isEmpty());
-  QTimer::singleShot(7000, this, [this]() { ui->widgetStatusBar->setHidden(true); });
+  if (!message.isEmpty())
+  {
+    showToast(message);
+  }
+}
+
+void MainWindow::showToast(const QString& message, const QPixmap& icon)
+{
+  if (_toast_manager)
+  {
+    _toast_manager->showToast(message, icon);
+  }
 }
 
 void MainWindow::loadStyleSheet(QString file_path)
@@ -1709,6 +1914,7 @@ void MainWindow::dragEnterEvent(QDragEnterEvent* event)
 void MainWindow::dropEvent(QDropEvent* event)
 {
   QStringList file_names;
+  bool has_directory = false;
   const auto urls = event->mimeData()->urls();
 
   for (const auto& url : urls)
@@ -1720,6 +1926,19 @@ void MainWindow::dropEvent(QDropEvent* event)
     {
       file_names << QDir::toNativeSeparators(local_file);
     }
+    else if (fileinfo.exists() && fileinfo.isDir())
+    {
+      has_directory = true;
+      QDirIterator it(local_file, QDirIterator::Subdirectories);
+      while (it.hasNext())
+      {
+        it.next();
+        if (it.fileInfo().isFile())
+        {
+          file_names << QDir::toNativeSeparators(it.filePath());
+        }
+      }
+    }
     else
     {
       QMessageBox::warning(
@@ -1728,7 +1947,7 @@ void MainWindow::dropEvent(QDropEvent* event)
     }
   }
 
-  loadDataFromFiles(file_names);
+  loadDataFromFiles(file_names, has_directory);
 }
 
 void MainWindow::on_stylesheetChanged(QString theme)
@@ -1858,7 +2077,7 @@ std::tuple<double, double, int> MainWindow::calculateVisibleRangeX()
         const double t1 = data.back().x;
         min_time = std::min(min_time, t0);
         max_time = std::max(max_time, t1);
-        max_steps = std::max(max_steps, (int)data.size());
+        max_steps = std::max(max_steps, (int)data.size() - 1);
       }
     }
   });
@@ -1875,7 +2094,7 @@ std::tuple<double, double, int> MainWindow::calculateVisibleRangeX()
         const double t1 = data.back().x;
         min_time = std::min(min_time, t0);
         max_time = std::max(max_time, t1);
-        max_steps = std::max(max_steps, (int)data.size());
+        max_steps = std::max(max_steps, (int)data.size() - 1);
       }
     }
   }
@@ -1890,7 +2109,7 @@ std::tuple<double, double, int> MainWindow::calculateVisibleRangeX()
   return std::tuple<double, double, int>(min_time, max_time, max_steps);
 }
 
-bool MainWindow::loadLayoutFromFile(QString filename)
+bool MainWindow::loadLayoutFromFile(QString filename, bool load_datafiles)
 {
   QSettings settings;
 
@@ -1902,12 +2121,18 @@ bool MainWindow::loadLayoutFromFile(QString filename)
     return false;
   }
 
+  // Read file content with explicit UTF-8 encoding to handle Unicode characters
+  QTextStream stream(&file);
+  stream.setCodec("UTF-8");
+  QString fileContent = stream.readAll();
+  file.close();
+
   QString errorStr;
   int errorLine, errorColumn;
 
   QDomDocument domDocument;
 
-  if (!domDocument.setContent(&file, true, &errorStr, &errorLine, &errorColumn))
+  if (!domDocument.setContent(fileContent, true, &errorStr, &errorLine, &errorColumn))
   {
     QMessageBox::information(window(), tr("XML Layout"),
                              tr("Parse error at line %1:\n%2").arg(errorLine).arg(errorStr));
@@ -1920,29 +2145,32 @@ bool MainWindow::loadLayoutFromFile(QString filename)
 
   loadPluginState(root);
   //-------------------------------------------------
-  QDomElement previously_loaded_datafile = root.firstChildElement("previouslyLoaded_"
-                                                                  "Datafiles");
-
-  QDomElement datafile_elem = previously_loaded_datafile.firstChildElement("fileInfo");
-  while (!datafile_elem.isNull())
+  if (load_datafiles)
   {
-    QString datafile_path = datafile_elem.attribute("filename");
-    if (QDir(datafile_path).isRelative())
+    QDomElement previously_loaded_datafile = root.firstChildElement("previouslyLoaded_"
+                                                                    "Datafiles");
+
+    QDomElement datafile_elem = previously_loaded_datafile.firstChildElement("fileInfo");
+    while (!datafile_elem.isNull())
     {
-      QDir layout_directory = QFileInfo(filename).absoluteDir();
-      QString new_path = layout_directory.filePath(datafile_path);
-      datafile_path = QFileInfo(new_path).absoluteFilePath();
+      QString datafile_path = datafile_elem.attribute("filename");
+      if (QDir(datafile_path).isRelative())
+      {
+        QDir layout_directory = QFileInfo(filename).absoluteDir();
+        QString new_path = layout_directory.filePath(datafile_path);
+        datafile_path = QFileInfo(new_path).absoluteFilePath();
+      }
+
+      FileLoadInfo info;
+      info.filename = datafile_path;
+      info.prefix = datafile_elem.attribute("prefix");
+
+      auto plugin_elem = datafile_elem.firstChildElement("plugin");
+      info.plugin_config.appendChild(info.plugin_config.importNode(plugin_elem, true));
+
+      loadDataFromFile(info, false);
+      datafile_elem = datafile_elem.nextSiblingElement("fileInfo");
     }
-
-    FileLoadInfo info;
-    info.filename = datafile_path;
-    info.prefix = datafile_elem.attribute("prefix");
-
-    auto plugin_elem = datafile_elem.firstChildElement("plugin");
-    info.plugin_config.appendChild(info.plugin_config.importNode(plugin_elem, true));
-
-    loadDataFromFile(info, false);
-    datafile_elem = datafile_elem.nextSiblingElement("fileInfo");
   }
 
   QDomElement previous_streamer = root.firstChildElement("previouslyLoaded_Streamer");
@@ -2019,28 +2247,98 @@ bool MainWindow::loadLayoutFromFile(QString filename)
       snippets.push_back({ GetSnippetFromXML(custom_eq), custom_eq });
     }
     // A custom plot may depend on other custom plots.
-    // Reorder them to respect the mutual dependency.
-    auto DependOn = [](const SnippetPair& a, const SnippetPair& b) {
-      if (b.first.linked_source == a.first.alias_name)
-      {
-        return true;
-      }
-      for (const auto& source : b.first.additional_sources)
-      {
-        if (source == a.first.alias_name)
+    // Use topological sort to respect nested dependencies (e.g. A -> B -> C).
+    // Build a map from alias_name to index for quick lookup
+    std::map<QString, size_t> name_to_index;
+    for (size_t i = 0; i < snippets.size(); i++)
+    {
+      name_to_index[snippets[i].first.alias_name] = i;
+    }
+
+    // Build adjacency list: edges[i] contains indices that i depends on
+    // (i.e. must come before i)
+    std::vector<std::vector<size_t>> dependents(snippets.size());
+    std::vector<int> in_degree(snippets.size(), 0);
+
+    for (size_t i = 0; i < snippets.size(); i++)
+    {
+      auto addDep = [&](const QString& dep_name) {
+        auto it = name_to_index.find(dep_name);
+        if (it != name_to_index.end() && it->second != i)
         {
-          return true;
+          dependents[it->second].push_back(i);
+          in_degree[i]++;
+        }
+      };
+      addDep(snippets[i].first.linked_source);
+      for (const auto& source : snippets[i].first.additional_sources)
+      {
+        addDep(source);
+      }
+    }
+
+    // Kahn's algorithm for topological sorting
+    std::queue<size_t> queue;
+    for (size_t i = 0; i < in_degree.size(); i++)
+    {
+      if (in_degree[i] == 0)
+      {
+        queue.push(i);
+      }
+    }
+
+    std::vector<SnippetPair> sorted_snippets;
+    sorted_snippets.reserve(snippets.size());
+    while (!queue.empty())
+    {
+      size_t current = queue.front();
+      queue.pop();
+      sorted_snippets.push_back(std::move(snippets[current]));
+
+      // Process all dependents
+      for (size_t dependent : dependents[current])
+      {
+        in_degree[dependent]--;
+        if (in_degree[dependent] == 0)
+        {
+          queue.push(dependent);
         }
       }
-      return false;
-    };
-    std::sort(snippets.begin(), snippets.end(), DependOn);
+    }
 
-    for (const auto& [snippet, custom_eq] : snippets)
+    // If there are remaining snippets (circular dependency), append them as-is
+    if (sorted_snippets.size() < snippets.size())
+    {
+      QMessageBox::warning(this, tr("Exception"),
+                           tr("Cyclic dependency detected in custom equations."));
+      for (size_t i = 0; i < snippets.size(); i++)
+      {
+        if (in_degree[i] != 0)
+        {
+          sorted_snippets.push_back(std::move(snippets[i]));
+        }
+      }
+    }
+
+    for (const auto& [snippet, custom_eq] : sorted_snippets)
     {
       try
       {
-        CustomPlotPtr new_custom_plot = std::make_shared<LuaCustomFunction>(snippet);
+        CustomPlotPtr new_custom_plot;
+
+        if (snippet.language.toLower() == "python")
+        {
+#ifdef PJ_HAS_PYTHON
+          new_custom_plot = std::make_shared<PythonCustomFunction>(snippet);
+#else
+          throw std::runtime_error("Python support not available (compiled without Python3 dev).");
+#endif
+        }
+        else
+        {
+          new_custom_plot = std::make_shared<LuaCustomFunction>(snippet);
+        }
+
         new_custom_plot->xmlLoadState(custom_eq);
 
         new_custom_plot->calculateAndAdd(_mapped_plot_data);
@@ -2269,6 +2567,31 @@ void MainWindow::updateDataAndReplot(bool replot_hidden_tabs)
       _curvelist_widget->addCurve(str);
     }
 
+    // Periodic resync: if a curve was missed by addCurve on first detection
+    // (e.g. due to a transient issue), MoveData won't report it again.
+    // Re-attempt all known curves every ~2 seconds to recover.
+    if (++_curvelist_resync_counter >= 50)
+    {
+      _curvelist_resync_counter = 0;
+      bool any_added = false;
+      auto syncCurves = [this, &any_added](auto& series_map) {
+        for (const auto& [name, _] : series_map)
+        {
+          if (_curvelist_widget->addCurve(name))
+          {
+            any_added = true;
+          }
+        }
+      };
+      syncCurves(_mapped_plot_data.numeric);
+      syncCurves(_mapped_plot_data.scatter_xy);
+      syncCurves(_mapped_plot_data.strings);
+      if (any_added)
+      {
+        move_ret.curves_updated = true;
+      }
+    }
+
     if (move_ret.curves_updated)
     {
       _curvelist_widget->refreshColumns();
@@ -2365,6 +2688,7 @@ void MainWindow::on_actionExit_triggered()
 void MainWindow::on_buttonRemoveTimeOffset_toggled(bool)
 {
   updateTimeOffset();
+  updateTimeSlider();
   updatedDisplayTime();
 
   forEachWidget([](PlotWidget* plot) { plot->replot(); });
@@ -2583,8 +2907,14 @@ void MainWindow::onEditCustomPlot(const std::string& plot_name)
     qWarning("failed to find custom equation");
     return;
   }
-  _function_editor->editExistingPlot(
-      std::dynamic_pointer_cast<LuaCustomFunction>(custom_it->second));
+
+  auto custom_plot = std::dynamic_pointer_cast<CustomFunction>(custom_it->second);
+  if (!custom_plot)
+  {
+    qWarning("failed to cast transform function to CustomFunction");
+    return;
+  }
+  _function_editor->editExistingPlot(custom_plot);
 }
 
 void MainWindow::onRefreshCustomPlot(const std::string& plot_name)
@@ -2597,7 +2927,13 @@ void MainWindow::onRefreshCustomPlot(const std::string& plot_name)
       qWarning("failed to find custom equation");
       return;
     }
-    CustomPlotPtr ce = std::dynamic_pointer_cast<LuaCustomFunction>(custom_it->second);
+
+    auto ce = std::dynamic_pointer_cast<CustomFunction>(custom_it->second);
+    if (!ce)
+    {
+      qWarning("failed to cast transform function to CustomFunction");
+      return;
+    }
     ce->calculateAndAdd(_mapped_plot_data);
 
     onUpdateLeftTableValues();
@@ -2705,7 +3041,7 @@ void MainWindow::onCustomPlotCreated(std::vector<CustomPlotPtr> custom_plots)
 
 void MainWindow::on_actionReportBug_triggered()
 {
-  QDesktopServices::openUrl(QUrl("https://github.com/facontidavide/PlotJuggler/issues"));
+  QDesktopServices::openUrl(QUrl("https://github.com/PlotJuggler/PlotJuggler/issues"));
 }
 
 void MainWindow::on_actionShare_the_love_triggered()
@@ -2850,22 +3186,20 @@ void MainWindow::on_buttonLoadDatafile_clicked()
 
   QSettings settings;
 
-  QString file_extension_filter;
-
-  std::set<QString> extensions;
-  for (auto& it : dataLoaders())
+  QString single_line_extensions;
+  QStringList extensions;
+  for (auto& [loader_name, loader] : dataLoaders())
   {
-    DataLoaderPtr loader = it.second;
+    QString filter_by_loader = QString("%1 (").arg(loader_name);
     for (QString extension : loader->compatibleFileExtensions())
     {
-      extensions.insert(extension.toLower());
+      filter_by_loader.append(QString("*.%1 ").arg(extension.toLower()));
+      single_line_extensions.append(QString("*.%1 ").arg(extension.toLower()));
     }
+    extensions.push_back(filter_by_loader.trimmed() + ")");
   }
-
-  for (const auto& it : extensions)
-  {
-    file_extension_filter.append(QString(" *.") + it);
-  }
+  extensions.push_front(QString("All Supported Files (%1)").arg(single_line_extensions.trimmed()));
+  extensions.push_back(QString("All Files (*)"));
 
   QString directory_path =
       settings.value("MainWindow.lastDatafileDirectory", QDir::currentPath()).toString();
@@ -2873,8 +3207,9 @@ void MainWindow::on_buttonLoadDatafile_clicked()
   QFileDialog loadDialog(this);
   loadDialog.setFileMode(QFileDialog::ExistingFiles);
   loadDialog.setViewMode(QFileDialog::Detail);
-  loadDialog.setNameFilter(file_extension_filter);
+  loadDialog.setNameFilter(extensions.join(";;"));
   loadDialog.setDirectory(directory_path);
+  loadDialog.setOption(QFileDialog::DontUseNativeDialog, true);
 
   QStringList fileNames;
   if (loadDialog.exec())
@@ -3037,25 +3372,28 @@ void MainWindow::on_buttonSaveLayout_clicked()
     auto snipped_saved = GetSnippetsFromXML(snippets_xml_text);
     auto snippets_root = ExportSnippets(snipped_saved, doc);
     root.appendChild(snippets_root);
-
-    QDomElement color_maps = doc.createElement("colorMaps");
-    for (const auto& it : ColorMapLibrary())
-    {
-      QString colormap_name = it.first;
-      QDomElement colormap = doc.createElement("colorMap");
-      QDomText colormap_script = doc.createTextNode(it.second->script());
-      colormap.setAttribute("name", colormap_name);
-      colormap.appendChild(colormap_script);
-      color_maps.appendChild(colormap);
-    }
   }
+
+  QDomElement color_maps = doc.createElement("colorMaps");
+  for (const auto& it : ColorMapLibrary())
+  {
+    QString colormap_name = it.first;
+    QDomElement colormap = doc.createElement("colorMap");
+    QDomText colormap_script = doc.createTextNode(it.second->script());
+    colormap.setAttribute("name", colormap_name);
+    colormap.appendChild(colormap_script);
+    color_maps.appendChild(colormap);
+  }
+  root.appendChild(color_maps);
+
   root.appendChild(doc.createComment(" - - - - - - - - - - - - - - "));
   //------------------------------------
   QFile file(fileName);
   if (file.open(QIODevice::WriteOnly))
   {
     QTextStream stream(&file);
-    stream << doc.toString() << "\n";
+    stream.setCodec("UTF-8");
+    WriteSortedXml(stream, doc);
   }
 }
 
@@ -3134,6 +3472,7 @@ void MainWindow::on_actionPreferences_triggered()
 {
   QSettings settings;
   QString prev_style = settings.value("Preferences::theme", "light").toString();
+  bool prev_swap_pan_zoom = settings.value("Preferences::swap_pan_zoom", false).toBool();
 
   PreferencesDialog dialog;
   dialog.exec();
@@ -3143,6 +3482,14 @@ void MainWindow::on_actionPreferences_triggered()
   if (!theme.isEmpty() && theme != prev_style)
   {
     loadStyleSheet(tr(":/resources/stylesheet_%1.qss").arg(theme));
+  }
+
+  // Apply swap pan/zoom preference to all existing plots
+  bool swap_pan_zoom = settings.value("Preferences::swap_pan_zoom", false).toBool();
+  if (swap_pan_zoom != prev_swap_pan_zoom)
+  {
+    auto visitor = [swap_pan_zoom](PlotWidget* plot) { plot->setSwapZoomPan(swap_pan_zoom); };
+    forEachWidget(visitor);
   }
 }
 
@@ -3334,28 +3681,29 @@ QStringList MainWindow::readAllCurvesFromXML(QDomElement root_node)
 {
   QStringList curves;
 
-  QStringList level_names = { "tabbed_widget", "Tab",  "Container", "DockSplitter",
-                              "DockArea",      "plot", "curve" };
-
-  std::function<void(int, QDomElement)> recursiveXmlStream;
-  recursiveXmlStream = [&](int level, QDomElement parent_elem) {
-    QString level_name = level_names[level];
-    for (auto elem = parent_elem.firstChildElement(level_name); elem.isNull() == false;
-         elem = elem.nextSiblingElement(level_name))
+  // Recursively find all <curve> elements regardless of nesting
+  std::function<void(QDomElement)> findCurves;
+  findCurves = [&](QDomElement elem) {
+    // Check if this element is a curve
+    if (elem.tagName() == "curve")
     {
-      if (level_name == "curve")
+      QString name = elem.attribute("name");
+      if (!name.isEmpty())
       {
-        curves.push_back(elem.attribute("name"));
+        curves.push_back(name);
       }
-      else
-      {
-        recursiveXmlStream(level + 1, elem);
-      }
+      return;  // curves don't have child curves
+    }
+
+    // Recursively process all child elements
+    for (QDomElement child = elem.firstChildElement(); !child.isNull();
+         child = child.nextSiblingElement())
+    {
+      findCurves(child);
     }
   };
 
-  // start recursion
-  recursiveXmlStream(0, root_node);
+  findCurves(root_node);
 
   return curves;
 }
@@ -3379,7 +3727,7 @@ void MainWindow::on_buttonReloadData_clicked()
 
 void MainWindow::on_buttonCloseStatus_clicked()
 {
-  ui->widgetStatusBar->hide();
+  // Status bar removed - using toast notifications instead
 }
 
 void MainWindow::on_buttonReferencePoint_toggled(bool checked)

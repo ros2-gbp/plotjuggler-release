@@ -1,8 +1,11 @@
 #include "datastream_mqtt.h"
 #include "ui_datastream_mqtt.h"
+#include "PlotJuggler/dialog_utils.h"
+#include <QMetaObject>
 #include <QMessageBox>
 #include <QSettings>
 #include <QDebug>
+#include <QThread>
 #include <QUuid>
 #include <QIntValidator>
 #include <QMessageBox>
@@ -77,6 +80,10 @@ bool DataStreamMQTT::start(QStringList*)
 
   QSettings settings;
   _protocol = settings.value("MosquittoMQTT::serialization_protocol", "JSON").toString();
+  if (parserFactories()->find(_protocol) == parserFactories()->end())
+  {
+    _protocol = parserFactories()->begin()->first;
+  }
   _dialog->ui->comboBoxProtocol->setCurrentText(_protocol);
 
   if (_dialog->exec() == QDialog::Rejected)
@@ -111,6 +118,9 @@ void DataStreamMQTT::shutdown()
   if (_running)
   {
     _running = false;
+    _mosq->disconnect();
+
+    std::unique_lock<std::mutex> lk(mutex());
     _parsers.clear();
     _topic_to_parse.clear();
     dataMap().clear();
@@ -133,28 +143,54 @@ void DataStreamMQTT::onComboProtocolChanged(const QString& selected_protocol)
   }
   _current_parser_creator = parserFactories()->at(selected_protocol);
 
-  if (auto widget = _current_parser_creator->optionsWidget())
+  showOptionsWidget(_dialog, _dialog->ui->widgetOptions, _current_parser_creator->optionsWidget());
+}
+
+PJ::MessageParserPtr DataStreamMQTT::ensureTopicParser(const std::string& topic)
+{
   {
-    widget->setVisible(true);
+    std::unique_lock<std::mutex> lk(mutex());
+    auto it = _parsers.find(topic);
+    if (it != _parsers.end())
+    {
+      return it->second;
+    }
   }
+
+  const QString protocol = _protocol;
+  PJ::MessageParserPtr parser;
+
+  auto create_parser = [this, &parser, topic, protocol]() {
+    std::unique_lock<std::mutex> lk(mutex());
+    auto it = _parsers.find(topic);
+    if (it == _parsers.end())
+    {
+      auto& parser_factory = parserFactories()->at(protocol);
+      it = _parsers.insert({ topic, parser_factory->createParser({ topic }, {}, {}, dataMap()) })
+               .first;
+    }
+    parser = it->second;
+  };
+
+  if (QThread::currentThread() == thread())
+  {
+    create_parser();
+  }
+  else
+  {
+    QMetaObject::invokeMethod(this, create_parser, Qt::BlockingQueuedConnection);
+  }
+
+  return parser;
 }
 
 void DataStreamMQTT::onMessageReceived(const mosquitto_message* message)
 {
-  std::unique_lock<std::mutex> lk(mutex());
-
-  auto it = _parsers.find(message->topic);
-  if (it == _parsers.end())
-  {
-    auto& parser_factory = parserFactories()->at(_protocol);
-    auto parser = parser_factory->createParser({ message->topic }, {}, {}, dataMap());
-    it = _parsers.insert({ message->topic, parser }).first;
-  }
-  auto& parser = it->second;
-
   bool result = false;
   try
   {
+    auto parser = ensureTopicParser(message->topic);
+    std::unique_lock<std::mutex> lk(mutex());
     MessageRef msg(static_cast<uint8_t*>(message->payload), message->payloadlen);
 
     using namespace std::chrono;
