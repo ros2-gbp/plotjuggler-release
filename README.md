@@ -1,3 +1,26 @@
+## plotjuggler (humble) - 3.17.2-3
+
+The packages in the `plotjuggler` repository were released into the `humble` distro by running `/usr/bin/bloom-release --rosdistro humble plotjuggler -y` on `Thu, 14 May 2026 09:46:48 -0000`
+
+The `plotjuggler` package was released.
+
+Version of package(s) in repository `plotjuggler`:
+
+- upstream repository: https://github.com/facontidavide/PlotJuggler.git
+- release repository: https://github.com/ros2-gbp/plotjuggler-release.git
+- rosdistro version: `3.15.0-1`
+- old version: `3.17.2-2`
+- new version: `3.17.2-3`
+
+Versions of tools used:
+
+- bloom version: `0.14.3`
+- catkin_pkg version: `1.1.0`
+- rosdep version: `0.26.0`
+- rosdistro version: `1.0.1`
+- vcstools version: `0.1.42`
+
+
 ## plotjuggler (humble) - 3.17.2-2
 
 The packages in the `plotjuggler` repository were released into the `humble` distro by running `/usr/bin/bloom-release --rosdistro humble plotjuggler -y` on `Thu, 14 May 2026 09:35:58 -0000`
