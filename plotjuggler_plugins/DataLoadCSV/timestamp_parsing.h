@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <sstream>
 #include <chrono>
 #include <cstdint>
@@ -15,6 +16,18 @@
 
 namespace PJ::CSV
 {
+
+/**
+ * @brief Parse a string to double in a locale-independent way.
+ *
+ * This function always uses '.' as the decimal separator, regardless of the
+ * system locale. It also accepts ',' as a decimal separator for compatibility
+ * with European CSV files.
+ *
+ * @param str The string to parse
+ * @return The parsed double value, or nullopt if parsing fails
+ */
+std::optional<double> toDouble(const std::string& str);
 
 /**
  * @brief Trim whitespace from both ends of a string.
@@ -77,11 +90,14 @@ std::optional<double> FormatParseTimestamp(const std::string& str, const std::st
 enum class ColumnType
 {
   NUMBER,         // Plain numeric value
+  HEX,            // Hexadecimal number with 0x prefix
   EPOCH_SECONDS,  // Numeric epoch timestamp in seconds
   EPOCH_MILLIS,   // Numeric epoch timestamp in milliseconds
   EPOCH_MICROS,   // Numeric epoch timestamp in microseconds
   EPOCH_NANOS,    // Numeric epoch timestamp in nanoseconds
   DATETIME,       // Date/time string with detected format
+  DATE_ONLY,      // Date string without time (e.g., "2024-01-15")
+  TIME_ONLY,      // Time string without date (e.g., "14:30:25.123")
   STRING,         // Non-numeric, non-datetime string
   UNDEFINED
 };
@@ -116,6 +132,22 @@ ColumnTypeInfo DetectColumnType(const std::string& str);
  * @return Parsed value as double, or nullopt if parsing fails
  */
 std::optional<double> ParseWithType(const std::string& str, const ColumnTypeInfo& type_info);
+
+/**
+ * @brief Parse a combined date + time string pair into a single timestamp.
+ *
+ * Used when date and time are in separate CSV columns (e.g., "2024-01-15" + "14:30:25.123").
+ *
+ * @param date_str The date string
+ * @param time_str The time string
+ * @param date_info The detected column type info for the date column
+ * @param time_info The detected column type info for the time column
+ * @return Seconds since epoch as double, or nullopt if parsing fails
+ */
+std::optional<double> ParseCombinedDateTime(const std::string& date_str,
+                                            const std::string& time_str,
+                                            const ColumnTypeInfo& date_info,
+                                            const ColumnTypeInfo& time_info);
 
 }  // namespace PJ::CSV
 

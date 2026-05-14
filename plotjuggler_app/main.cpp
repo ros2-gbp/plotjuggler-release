@@ -23,6 +23,10 @@
 #include <QHostInfo>
 #include <QSslConfiguration>
 #include <QSslSocket>
+#include <QStyleFactory>
+#include <QMessageBox>
+#include <QTimer>
+#include <QCheckBox>
 
 #include "PlotJuggler/transform_function.h"
 #include "transforms/binary_filter.h"
@@ -32,18 +36,47 @@
 #include "transforms/moving_average_filter.h"
 #include "transforms/moving_variance.h"
 #include "transforms/moving_rms.h"
+#ifdef PJ_HAS_PYTHON
+#include "transforms/python_custom_function.h"
+#endif
 #include "transforms/outlier_removal.h"
 #include "transforms/integral_transform.h"
 #include "transforms/absolute_transform.h"
 #include "transforms/time_since_previous_point.h"
 
-#include "new_release_dialog.h"
-
 #ifdef COMPILED_WITH_CATKIN
 #include <ros/ros.h>
 #endif
 #ifdef COMPILED_WITH_AMENT
-#include <rclcpp/rclcpp.hpp>
+#include <string_view>
+
+// Strip ROS 2 CLI arguments ("--ros-args ... [--]") from argv.
+// Equivalent to rclcpp::remove_ros_arguments, but without pulling the rclcpp /
+// rosidl typesupport stack into PlotJuggler just for one call.
+static std::vector<std::string> RemoveRos2Arguments(int argc, char* argv[])
+{
+  std::vector<std::string> out;
+  out.reserve(argc);
+  bool in_ros_block = false;
+  for (int i = 0; i < argc; ++i)
+  {
+    const std::string_view tok(argv[i]);
+    if (!in_ros_block)
+    {
+      if (tok == "--ros-args")
+      {
+        in_ros_block = true;
+        continue;
+      }
+      out.emplace_back(argv[i]);
+    }
+    else if (tok == "--")
+    {
+      in_ros_block = false;
+    }
+  }
+  return out;
+}
 #endif
 
 static QString VERSION_STRING =
@@ -62,42 +95,13 @@ inline int GetVersionNumber(QString str)
   return major * 10000 + minor * 100 + patch;
 }
 
-void OpenNewReleaseDialog(QNetworkReply* reply)
-{
-  if (reply->error())
-  {
-    qDebug() << "GitHub release check error:" << reply->error() << reply->errorString();
-    return;
-  }
-
-  QString answer = reply->readAll();
-  QJsonDocument document = QJsonDocument::fromJson(answer.toUtf8());
-  QJsonObject data = document.object();
-  QString url = data["html_url"].toString();
-  QString name = data["name"].toString();
-  QString tag_name = data["tag_name"].toString();
-  QSettings settings;
-  int online_number = GetVersionNumber(tag_name);
-  QString dont_show = settings.value("NewRelease/dontShowThisVersion", VERSION_STRING).toString();
-  int dontshow_number = GetVersionNumber(dont_show);
-  int current_number = GetVersionNumber(VERSION_STRING);
-
-  qDebug() << "Current version:" << VERSION_STRING << ". Latest release version :" << tag_name;
-
-  if (online_number > current_number && online_number > dontshow_number)
-  {
-    NewReleaseDialog* dialog = new NewReleaseDialog(nullptr, tag_name, name, url);
-    dialog->exec();
-  }
-}
-
 QPixmap getFunnySplashscreen()
 {
   QSettings settings;
   srand(time(nullptr));
 
   auto getNum = []() {
-    const int last_image_num = 103;
+    const int last_image_num = 106;
     return rand() % (last_image_num);
   };
 
@@ -183,7 +187,7 @@ int main(int argc, char* argv[])
 #elif defined(COMPILED_WITH_CATKIN)
   ros::removeROSArgs(argc, argv, args);
 #elif defined(COMPILED_WITH_AMENT)
-  args = rclcpp::remove_ros_arguments(argc, argv);
+  args = RemoveRos2Arguments(argc, argv);
 #endif
 
   args = MergeArguments(args);
@@ -195,12 +199,28 @@ int main(int argc, char* argv[])
     new_argv.push_back(args[i].data());
   }
 
+  // Must be set before QApplication is constructed. Tells Qt to scale
+  // widget metrics and QSS pixel values by the screen's scale factor,
+  // so XWayland (which reports DPI=N*96 with dpr=1) renders identically
+  // to native Wayland (DPI=96 dpr=N). Without this, Fusion metrics
+  // auto-scale by DPI but QSS hardcoded `px` values don't, causing
+  // inconsistent widget sizing in the AppImage.
+  QCoreApplication::setAttribute(Qt::AA_EnableHighDpiScaling);
+  QCoreApplication::setAttribute(Qt::AA_UseHighDpiPixmaps);
+
   QApplication app(new_argc, new_argv.data());
+
+  // Pin the Qt base style so the app's QSS paints on top of a known
+  // palette. Without this, the AppImage inherits the host's Qt platform
+  // theme (e.g. GTK3 dark on Ubuntu), causing unstyled widgets like the
+  // menu bar to render with system-dark colors while QSS-covered widgets
+  // stay light — the mixed-theme look users report.
+  QApplication::setStyle(QStyleFactory::create("Fusion"));
 
   //-------------------------
 
   QCoreApplication::setOrganizationName("PlotJuggler");
-  QCoreApplication::setApplicationName("PlotJuggler-3");
+  QCoreApplication::setApplicationName("io.plotjuggler.PlotJuggler");
   QSettings::setDefaultFormat(QSettings::IniFormat);
 
   QSettings settings;
@@ -304,6 +324,10 @@ int main(int argc, char* argv[])
                                   "window_title");
   parser.addOption(window_title);
 
+  QCommandLineOption auto_prefix_option("auto-prefix",
+                                        "Automatically prefix each data file with its filename");
+  parser.addOption(auto_prefix_option);
+
   parser.process(*qApp);
 
   if (parser.isSet(publish_option) && !parser.isSet(layout_option))
@@ -338,20 +362,6 @@ int main(int argc, char* argv[])
   QIcon app_icon("://resources/plotjuggler.svg");
   QApplication::setWindowIcon(app_icon);
 
-  QNetworkAccessManager manager_new_release;
-  QObject::connect(&manager_new_release, &QNetworkAccessManager::finished, OpenNewReleaseDialog);
-
-  QNetworkRequest request_new_release;
-  request_new_release.setUrl(QUrl("https://api.github.com/repos/facontidavide/"
-                                  "PlotJuggler/releases/latest"));
-
-  // Disable SSL peer verification for GitHub API (workaround for Qt5/OpenSSL 3.0 incompatibility)
-  QSslConfiguration sslConfig_release = request_new_release.sslConfiguration();
-  sslConfig_release.setPeerVerifyMode(QSslSocket::VerifyNone);
-  request_new_release.setSslConfiguration(sslConfig_release);
-
-  manager_new_release.get(request_new_release);
-
   MainWindow* window = nullptr;
 
   /*
@@ -366,6 +376,19 @@ int main(int argc, char* argv[])
    * reject a message that brings a little of happiness into your day, spent analyzing
    * data. Please don't do it.
    */
+#ifdef PJ_HAS_PYTHON
+  // Probe the embedded Python interpreter BEFORE constructing MainWindow, so
+  // FunctionEditorWidget (built inside the MainWindow ctor) sees the correct
+  // PythonCustomFunction::isAvailable() state when it decides whether to
+  // enable / disable the Python radio buttons.
+  const bool python_ok = PythonCustomFunction::probeAvailable();
+  if (!python_ok)
+  {
+    qWarning() << "Embedded Python could not be initialized — Python custom "
+                  "functions will be disabled for this session.";
+  }
+#endif
+
   if (!parser.isSet(nosplash_option) &&
       !(parser.isSet(loadfile_option) || parser.isSet(layout_option)) &&
       !(settings.value("Preferences::no_splash", false).toBool()))
@@ -419,10 +442,86 @@ int main(int argc, char* argv[])
 
   window->show();
 
+#ifdef PJ_HAS_PYTHON
+  if (!python_ok)
+  {
+    // Show a one-time, dismissible warning after the main window is up so the
+    // user immediately knows Python custom functions won't work on this host.
+    const QString suppress_key = "PythonUnavailable.suppressWarning";
+    if (!QSettings().value(suppress_key, false).toBool())
+    {
+      QTimer::singleShot(0, window, [window, suppress_key]() {
+        QMessageBox box(window);
+        box.setIcon(QMessageBox::Warning);
+        box.setWindowTitle(QObject::tr("Python disabled"));
+        box.setText(QObject::tr("PlotJuggler could not initialize the embedded "
+                                "Python interpreter."));
+        box.setInformativeText(
+            QObject::tr("Python custom functions are disabled for this session. Lua custom "
+                        "functions remain available.\n\n"
+                        "This usually means the Python standard library expected by this "
+                        "build is not present on the host system (common when running an "
+                        "AppImage on a distro with a different Python version)."));
+        QCheckBox* dont_show = new QCheckBox(QObject::tr("Don't show this again"), &box);
+        box.setCheckBox(dont_show);
+        box.setStandardButtons(QMessageBox::Ok);
+        box.exec();
+        if (dont_show->isChecked())
+        {
+          QSettings().setValue(suppress_key, true);
+        }
+      });
+    }
+  }
+#endif
+
   if (parser.isSet(start_streamer))
   {
     window->on_buttonStreamingStart_clicked();
   }
+
+  // Check for new releases on GitHub
+  QNetworkAccessManager* manager_new_release = new QNetworkAccessManager(&app);
+  QObject::connect(
+      manager_new_release, &QNetworkAccessManager::finished, [window](QNetworkReply* reply) {
+        if (reply->error())
+        {
+          qDebug() << "GitHub release check error:" << reply->error() << reply->errorString();
+          return;
+        }
+
+        QString answer = reply->readAll();
+        QJsonDocument document = QJsonDocument::fromJson(answer.toUtf8());
+        QJsonObject data = document.object();
+        QString url = data["html_url"].toString();
+        QString name = data["name"].toString();
+        QString tag_name = data["tag_name"].toString();
+
+        int online_number = GetVersionNumber(tag_name);
+        int current_number = GetVersionNumber(VERSION_STRING);
+
+        qDebug() << "Current version:" << VERSION_STRING << ". Latest release version:" << tag_name;
+
+        if (online_number > current_number)
+        {
+          QString message = QString("New release available: <b>%1</b><br>"
+                                    "<a href=\"%2\">View on GitHub</a>")
+                                .arg(name, url);
+          QPixmap icon(":/resources/success_kid.png");
+          window->showToast(message, icon);
+        }
+      });
+
+  QNetworkRequest request_new_release;
+  request_new_release.setUrl(
+      QUrl("https://api.github.com/repos/PlotJuggler/PlotJuggler/releases/latest"));
+
+  // Disable SSL peer verification for GitHub API (workaround for Qt5/OpenSSL 3.0 incompatibility)
+  QSslConfiguration sslConfig_release = request_new_release.sslConfiguration();
+  sslConfig_release.setPeerVerifyMode(QSslSocket::VerifyNone);
+  request_new_release.setSslConfiguration(sslConfig_release);
+
+  manager_new_release->get(request_new_release);
 
   QNetworkAccessManager manager_message;
   QObject::connect(
