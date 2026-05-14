@@ -11,8 +11,8 @@ description: |
     $ plotjuggler
 
 
-issues: https://github.com/facontidavide/plotjuggler/issues
-source-code: https://github.com/facontidavide/plotjuggler
+issues: https://github.com/PlotJuggler/plotjuggler/issues
+source-code: https://github.com/PlotJuggler/plotjuggler
 license: MPL-2.0
 version: git
 confinement: strict
@@ -32,6 +32,7 @@ parts:
       - -DBASE_AS_SHARED=ON
       - -DCMAKE_BUILD_TYPE=Release
       - -DPJ_INSTALLATION="snap-humble"
+      - -DPJ_PLUGINS_DIRECTORY="bin"
       - "-DCMAKE_PREFIX_PATH=$(echo $SNAPCRAFT_CMAKE_ARGS | awk -F= '{printf(\"%s/usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR/cmake/Qt5\", $2)}')"
     build-packages:
       - distro-info-data
