@@ -3,7 +3,7 @@ cmake_minimum_required(VERSION 3.16)
 project(
   plotjuggler
   LANGUAGES C CXX
-  VERSION 3.14.4)
+  VERSION 3.17.2)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -22,7 +22,8 @@ set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_CURRENT_LIST_DIR}/cmake")
 option(ENABLE_ASAN "Enable Address Sanitizer" OFF)
 option(BASE_AS_SHARED "Build the base library as a shared library" OFF)
 option(BUILDING_WITH_CONAN "Using Conan for dependencies" OFF)
-option(PJ_INSTALLATION "Installation type" "undefined")
+set(PJ_INSTALLATION "undefined" CACHE STRING "Installation type")
+set(PJ_PLUGINS_DIRECTORY "lib/plotjuggler/plugins" CACHE STRING "Plugins directory")
 
 if(NOT WIN32 AND ENABLE_ASAN)
   set(CMAKE_CXX_FLAGS
@@ -71,7 +72,6 @@ elseif(ament_cmake_FOUND)
 
   find_package(ament_cmake REQUIRED)
   find_package(ament_index_cpp REQUIRED)
-  find_package(rclcpp REQUIRED)
 
   include_directories(${ament_index_cpp_INCLUDE_DIRS})
 
@@ -184,6 +184,8 @@ find_or_download_fmt()
 
 # IMPORTANT: LZ4 and ZSTD must be included after Arrow, since Arrow also includes
 # Findlz4Alt.cmake and FindzstdAlt.cmake and we want to avoid target conflicts
+# Arrow 23.0.0+ requires CURL::libcurl target to exist before loading Arrow config
+find_package(CURL QUIET)
 find_package(Arrow QUIET)
 
 include(${PROJECT_SOURCE_DIR}/cmake/find_or_download_lz4.cmake)
@@ -193,8 +195,8 @@ include(${PROJECT_SOURCE_DIR}/cmake/find_or_download_zstd.cmake)
 find_or_download_zstd()
 
 if(NOT COMPILING_WITH_AMENT)
-  include(cmake/download_wasmtime.cmake)
-  download_wasmtime()
+  include(cmake/download_wasmer.cmake)
+  download_wasmer()
 endif()
 
 
@@ -220,7 +222,8 @@ set(PLOTJUGGLER_BASE_SRC
     plotjuggler_base/src/plotpanner.cpp
     plotjuggler_base/src/timeseries_qwt.cpp
     plotjuggler_base/src/reactive_function.cpp
-    plotjuggler_base/src/save_plot.cpp)
+    plotjuggler_base/src/save_plot.cpp
+    plotjuggler_base/src/range_slider.cpp)
 
 qt5_wrap_cpp(
   PLOTJUGGLER_BASE_MOCS
@@ -229,7 +232,8 @@ qt5_wrap_cpp(
   plotjuggler_base/include/PlotJuggler/toolbox_base.h
   plotjuggler_base/include/PlotJuggler/datastreamer_base.h
   plotjuggler_base/include/PlotJuggler/transform_function.h
-  plotjuggler_base/include/PlotJuggler/plotwidget_base.h)
+  plotjuggler_base/include/PlotJuggler/plotwidget_base.h
+  plotjuggler_base/include/PlotJuggler/range_slider.h)
 
 if(BASE_AS_SHARED)
   add_library(plotjuggler_base SHARED ${PLOTJUGGLER_BASE_SRC}
@@ -239,9 +243,7 @@ else()
                                       ${PLOTJUGGLER_BASE_MOCS})
 endif()
 
-if(NOT PJ_PLUGIN_INSTALL_DIRECTORY)
-  set(PJ_PLUGIN_INSTALL_DIRECTORY "${CMAKE_INSTALL_PREFIX}/lib/plotjuggler-plugins")
-endif()
+set(PJ_PLUGIN_INSTALL_DIRECTORY "${CMAKE_INSTALL_PREFIX}/${PJ_PLUGINS_DIRECTORY}")
 
 target_include_directories(
   plotjuggler_base
@@ -302,7 +304,7 @@ endif()
 
 set(DESKTOP_ICON_DIR "${CMAKE_INSTALL_PREFIX}/share/icons")
 
-install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/PlotJuggler.desktop
+install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/io.plotjuggler.PlotJuggler.desktop
         DESTINATION "${CMAKE_INSTALL_PREFIX}/share/applications")
 
 install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/plotjuggler.svg

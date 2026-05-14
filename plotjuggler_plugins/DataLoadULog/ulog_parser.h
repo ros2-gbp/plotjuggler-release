@@ -8,9 +8,21 @@
 #include <cstdint>
 #include <optional>
 
-#include "string_view.hpp"
+#include <string_view>
 
-typedef nonstd::string_view StringView;
+typedef std::string_view StringView;
+
+// Helper functions for std::string_view compatibility (C++17)
+inline bool startsWith(std::string_view sv, std::string_view prefix)
+{
+  return sv.size() >= prefix.size() && sv.compare(0, prefix.size(), prefix) == 0;
+}
+
+inline bool endsWith(std::string_view sv, std::string_view suffix)
+{
+  return sv.size() >= suffix.size() &&
+         sv.compare(sv.size() - suffix.size(), suffix.size(), suffix) == 0;
+}
 
 class ULogParser
 {
@@ -21,11 +33,11 @@ public:
     const size_t _length;
     size_t offset;
 
-    DataStream(char* data, int len) : _data(data), _length(len), offset(0)
+    DataStream(char* data, size_t len) : _data(data), _length(len), offset(0)
     {
     }
 
-    void read(char* dst, int len)
+    void read(char* dst, size_t len)
     {
       memcpy(dst, &_data[offset], len);
       offset += len;
@@ -173,5 +185,5 @@ private:
   void parseDataMessage(const Subscription& sub, char* message);
 
   char* parseSimpleDataMessage(Timeseries& timeseries, const Format* format, char* message,
-                               size_t* index);
+                               size_t* index, bool read_timestamp = true);
 };
